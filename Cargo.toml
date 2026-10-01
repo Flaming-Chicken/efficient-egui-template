@@ -15,7 +15,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 description = "Modern, modular Serverless (WASM/Cloudflare Pages) & Native Desktop template built with Rust and egui"
-repository = "https://github.com/Spodeian/efficient-egui-template"
+repository = "https://github.com/Flaming-Chicken/efficient-egui-template"
 
 [workspace.dependencies]
 eframe = { version = "0.36", default-features = false, features = ["default_fonts"] }
