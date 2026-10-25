@@ -12,16 +12,34 @@ pub use telemetry::*;
 
 pub use spodeian_tokens::ThemeMode;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AppPage {
+    #[default]
+    Dashboard,
+    About,
+}
+
+impl AppPage {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Dashboard => "Dashboard",
+            Self::About => "About",
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(default)]
 pub struct AppConfig {
     pub theme: ThemeMode,
+    pub active_page: AppPage,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme: ThemeMode::Dark,
+            active_page: AppPage::Dashboard,
         }
     }
 }

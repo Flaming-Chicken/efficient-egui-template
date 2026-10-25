@@ -81,4 +81,21 @@ fn test_state_backward_compatibility() {
         app_state.is_ok(),
         "Should parse legacy state without failure"
     );
+    let state = app_state.unwrap();
+    assert_eq!(state.config.active_page, shared::AppPage::Dashboard);
+}
+
+#[test]
+fn test_app_page_routing() {
+    let mut state = shared::AppState::default();
+    assert_eq!(state.config.active_page, shared::AppPage::Dashboard);
+    assert_eq!(state.config.active_page.label(), "Dashboard");
+
+    state.config.active_page = shared::AppPage::About;
+    assert_eq!(state.config.active_page.label(), "About");
+
+    let serialized = serde_json::to_string(&state).expect("Serialization failed");
+    let deserialized: shared::AppState =
+        serde_json::from_str(&serialized).expect("Deserialization failed");
+    assert_eq!(deserialized.config.active_page, shared::AppPage::About);
 }

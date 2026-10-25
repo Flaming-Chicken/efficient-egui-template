@@ -213,12 +213,57 @@ impl eframe::App for TemplateApp {
         let constraints = ScreenConstraints::compute(ui);
         components::navbar::render_navbar(self, ui, &constraints);
 
-        egui::CentralPanel::default().show(ui, |ui| {
-            components::item_list::render_summary_cards(self, ui, &constraints);
-            ui.add_space(10.0);
-            components::item_list::render_new_item_form(self, ui, &constraints);
-            ui.add_space(10.0);
-            components::item_list::render_item_list(self, ui, &constraints);
+        egui::Panel::bottom("bottom_footer").show(ui, |ui| {
+            ui.add_space(3.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(
+                        "Built with Rust & egui 0.36 • Serverless WASM & Native Desktop",
+                    )
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+                );
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let tier_text = format!("Storage: {}", self.storage_diag.backend.label());
+                    ui.label(
+                        egui::RichText::new(tier_text)
+                            .small()
+                            .monospace()
+                            .color(ui.visuals().weak_text_color()),
+                    );
+
+                    ui.label(
+                        egui::RichText::new("•")
+                            .small()
+                            .color(ui.visuals().weak_text_color()),
+                    );
+
+                    if ui.link("About").clicked() {
+                        self.state.config.active_page = shared::AppPage::About;
+                        self.persist_state();
+                    }
+
+                    if ui.link("Dashboard").clicked() {
+                        self.state.config.active_page = shared::AppPage::Dashboard;
+                        self.persist_state();
+                    }
+                });
+            });
+            ui.add_space(3.0);
+        });
+
+        egui::CentralPanel::default().show(ui, |ui| match self.state.config.active_page {
+            shared::AppPage::Dashboard => {
+                components::item_list::render_summary_cards(self, ui, &constraints);
+                ui.add_space(10.0);
+                components::item_list::render_new_item_form(self, ui, &constraints);
+                ui.add_space(10.0);
+                components::item_list::render_item_list(self, ui, &constraints);
+            }
+            shared::AppPage::About => {
+                components::about::render_about_page(self, ui, &constraints);
+            }
         });
 
         components::modals::render_dialogs(self, ui);

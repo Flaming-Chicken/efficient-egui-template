@@ -22,6 +22,25 @@ pub fn render_navbar(app: &mut TemplateApp, ui: &mut egui::Ui, constraints: &Scr
                 ui.heading(title_text);
             }
 
+            ui.add_space(8.0);
+            if ui
+                .selectable_label(app.state.config.active_page == shared::AppPage::Dashboard, "📊 Dashboard")
+                .on_hover_text("Task and Item Management View")
+                .clicked()
+            {
+                app.state.config.active_page = shared::AppPage::Dashboard;
+                app.persist_state();
+            }
+
+            if ui
+                .selectable_label(app.state.config.active_page == shared::AppPage::About, "ℹ️ About")
+                .on_hover_text("Template Architecture, Diagnostics, and Documentation")
+                .clicked()
+            {
+                app.state.config.active_page = shared::AppPage::About;
+                app.persist_state();
+            }
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let theme_text = if constraints.is_mobile {
                     format!("{} {}", app.state.config.theme.icon(), app.state.config.theme.label())
