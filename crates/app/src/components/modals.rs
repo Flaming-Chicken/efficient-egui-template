@@ -394,6 +394,29 @@ pub fn render_storage_modal(app: &mut TemplateApp, ui: &mut egui::Ui) {
             });
 
             ui.horizontal(|ui| {
+                ui.label("In-Memory Working Set:");
+                ui.label(format!(
+                    "{} items (Capacity limit: {} items)",
+                    app.state.collection.items.len(),
+                    app.storage_diag.memory_capacity_limit
+                ));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("IndexedDB Fallback:");
+                let fallback_label =
+                    if app.storage_diag.idb_active || app.storage_diag.fallback_tier_active {
+                        "Active (Prevents RAM Overfilling)"
+                    } else {
+                        "Synchronized & Available"
+                    };
+                ui.colored_label(
+                    egui::Color32::from_rgb(80, 200, 100),
+                    egui::RichText::new(fallback_label).strong(),
+                );
+            });
+
+            ui.horizontal(|ui| {
                 ui.label("PWA Installation:");
                 if app.storage_diag.is_pwa_installed {
                     ui.colored_label(

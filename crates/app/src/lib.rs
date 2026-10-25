@@ -108,6 +108,11 @@ impl TemplateApp {
 
     /// Immediately persist current state to multi-tier storage (active persistence)
     pub fn persist_state(&mut self) {
+        let items_len = self.state.collection.items.len();
+        self.storage_diag.memory_items_count = items_len;
+        self.storage_diag.fallback_tier_active =
+            items_len > MEMORY_WORKING_SET_LIMIT || self.storage_diag.idb_active;
+
         if let Ok(json_str) = serde_json::to_string(&self.state) {
             match save_state_multi_tier(DEDICATED_STORAGE_KEY, &json_str) {
                 Ok(backend) => {
@@ -208,6 +213,10 @@ impl eframe::App for TemplateApp {
             self.storage_diag.is_persisted = queried.is_persisted;
             self.storage_diag.pwa_install_available = queried.pwa_install_available;
             self.storage_diag.is_pwa_installed = queried.is_pwa_installed;
+            self.storage_diag.memory_items_count = self.state.collection.items.len();
+            self.storage_diag.fallback_tier_active = self.state.collection.items.len()
+                > MEMORY_WORKING_SET_LIMIT
+                || self.storage_diag.idb_active;
         }
 
         let constraints = ScreenConstraints::compute(ui);

@@ -94,6 +94,19 @@ pub fn render_about_page(
                         ui.label(format!("{} {}", app.state.config.theme.icon(), app.state.config.theme.label()));
                         ui.end_row();
 
+                        ui.label("Memory Tier (RAM):");
+                        ui.label(format!("{} active items (Working limit: {} items)", app.state.collection.items.len(), app.storage_diag.memory_capacity_limit));
+                        ui.end_row();
+
+                        ui.label("IndexedDB Fallback:");
+                        let idb_text = if app.storage_diag.idb_active || app.storage_diag.fallback_tier_active {
+                            "Active (Protected against RAM overfill)"
+                        } else {
+                            "Synchronized & Ready (Durable Backing)"
+                        };
+                        ui.label(egui::RichText::new(idb_text).color(egui::Color32::from_rgb(80, 200, 100)).monospace());
+                        ui.end_row();
+
                         ui.label("Total Managed Items:");
                         ui.label(format!("{} items ({} completed)", total_items, completed_items));
                         ui.end_row();

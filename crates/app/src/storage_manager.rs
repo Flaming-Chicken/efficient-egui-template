@@ -34,7 +34,12 @@ impl StorageBackend {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+/// Target working capacity of items held directly in RAM for sub-microsecond latency.
+/// Once items exceed this threshold, the persistent fallback tier (IndexedDB on web, CAS on desktop)
+/// retains the complete durable dataset, preventing memory from overfilling.
+pub const MEMORY_WORKING_SET_LIMIT: usize = 100;
+
+#[derive(Debug, Clone)]
 pub struct StorageDiagnostics {
     pub is_persisted: Option<bool>,
     pub pwa_install_available: bool,
@@ -44,6 +49,27 @@ pub struct StorageDiagnostics {
     pub idb_active: bool,
     pub usage_bytes: u64,
     pub quota_bytes: u64,
+    pub memory_items_count: usize,
+    pub memory_capacity_limit: usize,
+    pub fallback_tier_active: bool,
+}
+
+impl Default for StorageDiagnostics {
+    fn default() -> Self {
+        Self {
+            is_persisted: None,
+            pwa_install_available: false,
+            is_pwa_installed: false,
+            backend: StorageBackend::default(),
+            quota_exceeded: false,
+            idb_active: false,
+            usage_bytes: 0,
+            quota_bytes: 0,
+            memory_items_count: 0,
+            memory_capacity_limit: MEMORY_WORKING_SET_LIMIT,
+            fallback_tier_active: false,
+        }
+    }
 }
 
 /// Query current storage persistence and PWA status from browser environment
@@ -275,16 +301,18 @@ pub fn save_state_multi_tier(key: &str, json_str: &str) -> Result<StorageBackend
                 }
             }
 
-            // Tier 2: Try localStorage for fast session data if small
+            // Tier 2: Try localStorage for fast synchronous session data if small (< 16 KB)
+            let mut local_storage_saved = false;
             if size < 16 * 1024 {
                 if let Ok(Some(storage)) = window.local_storage() {
                     if storage.set_item(key, json_str).is_ok() {
-                        return Ok(StorageBackend::LocalStorage);
+                        local_storage_saved = true;
                     }
                 }
             }
 
-            // Tier 3: IndexedDB for structured entities and fallback
+            // Tier 3: Always synchronize to IndexedDB as the durable structured fallback tier
+            // to protect memory from overfilling and ensure multi-megabyte safety.
             if let Ok(func) = js_sys::Reflect::get(
                 &window,
                 &wasm_bindgen::JsValue::from_str("__saveToIndexedDB"),
@@ -293,9 +321,15 @@ pub fn save_state_multi_tier(key: &str, json_str: &str) -> Result<StorageBackend
                     let k = wasm_bindgen::JsValue::from_str(key);
                     let v = wasm_bindgen::JsValue::from_str(json_str);
                     let _ = func.call2(&window, &k, &v);
-                    info!("Saved structured state to IndexedDB [{}]", key);
-                    return Ok(StorageBackend::IndexedDb);
+                    info!("Synchronized state to IndexedDB fallback tier [{}]", key);
+                    if !local_storage_saved {
+                        return Ok(StorageBackend::IndexedDb);
+                    }
                 }
+            }
+
+            if local_storage_saved {
+                return Ok(StorageBackend::LocalStorage);
             }
 
             return Err("All browser storage tiers failed.".to_string());

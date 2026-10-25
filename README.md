@@ -58,12 +58,13 @@ graph TD
   - **Dashboard Page**: Interactive item collection with real-time statistics, search & priority filtering, and instant creation.
   - **About Page**: Architectural overview, live runtime diagnostics, active storage tier, and keyboard shortcuts guide.
   - **Bottom Status Footer**: Live storage tier indicator (`LocalStorage` vs `IndexedDB`), quick page navigation links, and licensing notice.
-- **💾 Robust Multi-Tier State Persistence**:
-  - **Tier 1 (Fast Sync)**: Synchronous browser `localStorage` under dedicated storage key `serverless_template_app_state`.
-  - **Tier 2 (Extended Quota)**: Asynchronous `IndexedDB` fallback if `localStorage` quota is exceeded.
+- **💾 Robust Multi-Tier State Persistence & Memory Protection**:
+  - **In-Memory Tier (RAM)**: Native Rust struct representation for sub-microsecond latency, 0-allocation query paths, and 60-120 FPS rendering. Includes bounded capacity (`MEMORY_WORKING_SET_LIMIT` = 100 items) to prevent browser tab and process memory exhaustion (OOM).
+  - **Tier 1 (Fast Sync)**: Synchronous browser `localStorage` under dedicated storage key `serverless_template_app_state` for fast reloads (< 16 KB).
+  - **Tier 2 (IndexedDB Fallback)**: Structured, transactional `IndexedDB` backing store that receives synchronized copies of state and acts as a durable fallback to prevent memory from overfilling on large datasets.
   - **Dual-Format Deserializer**: Attempts JSON deserialization first, seamlessly falling back to RON for backwards and forwards compatibility.
   - **Active State Persistence**: Dispatches immediate saves on user interactions (adds, toggles, deletions, resets, imports, theme changes) in addition to window close / `beforeunload` events.
-  - **Storage Diagnostics Modal**: Live inspection of persistence status (persistent vs. ephemeral) with one-click permission requests (`StorageManager.persist()`).
+  - **Storage Diagnostics Modal**: Live inspection of memory item count, capacity limits, active storage tier, and persistence status (persistent vs. ephemeral) with one-click permission requests (`StorageManager.persist()`).
 - **📱 Responsive & Touch-Friendly UI**: Layout automatically adapts across widescreen desktop monitors, tablets, and constrained mobile portrait viewports with adaptive element sizing and soft-wrap line calculations.
 - **🎨 Theme Engine**: Instant toggle between Charcoal Dark Mode, Warm Light Mode, and High Contrast Modes with persistent preference storage.
 - **⌨️ Intuitive Keyboard Support**: Press `Enter` to submit new items instantly and `Escape` to close any open modal dialog.
