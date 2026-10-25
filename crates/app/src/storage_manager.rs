@@ -1,7 +1,9 @@
 //! Unified multi-tiered storage engine, persistence manager, PWA install bridge, and diagnostics for template app.
 
 use serde::{Deserialize, Serialize};
-use spodeian_cache::{ContentAddressedStorage, PreferentialRouter};
+#[cfg(not(target_arch = "wasm32"))]
+use spodeian_cache::ContentAddressedStorage;
+use spodeian_cache::PreferentialRouter;
 #[allow(unused_imports)]
 use spodeian_cache::StorageTier;
 #[allow(unused_imports)]
@@ -250,7 +252,8 @@ pub fn load_state_multi_tier(storage: Option<&dyn eframe::Storage>) -> Option<sh
 pub fn save_state_multi_tier(key: &str, json_str: &str) -> Result<StorageBackend, String> {
     let size = json_str.len();
     let is_large_or_binary = size > 512 * 1024;
-    let recommended_tier = PreferentialRouter::determine_tier(size, "application/json", is_large_or_binary);
+    let recommended_tier =
+        PreferentialRouter::determine_tier(size, "application/json", is_large_or_binary);
     let _ = (key, &recommended_tier);
 
     #[cfg(target_arch = "wasm32")]

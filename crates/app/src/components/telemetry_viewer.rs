@@ -47,10 +47,30 @@ pub fn render_telemetry_modal(app: &mut TemplateApp, ctx: &egui::Context) {
                 .num_columns(4)
                 .spacing([12.0, 10.0])
                 .show(ui, |ui| {
-                    render_kpi_card(ui, "Uptime", &format!("{}s", app.telemetry_data.uptime_secs), "Online Duration");
-                    render_kpi_card(ui, "Operations", &format!("{}", app.telemetry_data.total_operations), "Total Invocations");
-                    render_kpi_card(ui, "Success Rate", &format!("{:.2}%", app.telemetry_data.success_rate), "Zero-Fault SLA");
-                    render_kpi_card(ui, "Throughput", &format!("{:.0} ops/s", app.telemetry_data.throughput_ops_sec), "Peak Velocity");
+                    render_kpi_card(
+                        ui,
+                        "Uptime",
+                        &format!("{}s", app.telemetry_data.uptime_secs),
+                        "Online Duration",
+                    );
+                    render_kpi_card(
+                        ui,
+                        "Operations",
+                        &format!("{}", app.telemetry_data.total_operations),
+                        "Total Invocations",
+                    );
+                    render_kpi_card(
+                        ui,
+                        "Success Rate",
+                        &format!("{:.2}%", app.telemetry_data.success_rate),
+                        "Zero-Fault SLA",
+                    );
+                    render_kpi_card(
+                        ui,
+                        "Throughput",
+                        &format!("{:.0} ops/s", app.telemetry_data.throughput_ops_sec),
+                        "Peak Velocity",
+                    );
                     ui.end_row();
                 });
 
@@ -62,32 +82,34 @@ pub fn render_telemetry_modal(app: &mut TemplateApp, ctx: &egui::Context) {
             ui.label(egui::RichText::new("Subsystem Channels & Health Telemetry").strong());
             ui.add_space(2.0);
 
-            egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                egui::Grid::new("telemetry_channels_grid")
-                    .striped(true)
-                    .num_columns(4)
-                    .spacing([24.0, 6.0])
-                    .show(ui, |ui| {
-                        ui.label(egui::RichText::new("Channel").strong());
-                        ui.label(egui::RichText::new("Processed").strong());
-                        ui.label(egui::RichText::new("Latency").strong());
-                        ui.label(egui::RichText::new("Status").strong());
-                        ui.end_row();
-
-                        for ch in &app.telemetry_data.channels {
-                            ui.label(&ch.name);
-                            ui.label(format!("{}", ch.count));
-                            ui.label(format!("{:.2} ms", ch.latency_ms));
-                            let color = if ch.status == "Healthy" || ch.status == "Optimal" {
-                                egui::Color32::from_rgb(70, 190, 110)
-                            } else {
-                                egui::Color32::from_rgb(220, 150, 40)
-                            };
-                            ui.colored_label(color, &ch.status);
+            egui::ScrollArea::vertical()
+                .max_height(200.0)
+                .show(ui, |ui| {
+                    egui::Grid::new("telemetry_channels_grid")
+                        .striped(true)
+                        .num_columns(4)
+                        .spacing([24.0, 6.0])
+                        .show(ui, |ui| {
+                            ui.label(egui::RichText::new("Channel").strong());
+                            ui.label(egui::RichText::new("Processed").strong());
+                            ui.label(egui::RichText::new("Latency").strong());
+                            ui.label(egui::RichText::new("Status").strong());
                             ui.end_row();
-                        }
-                    });
-            });
+
+                            for ch in &app.telemetry_data.channels {
+                                ui.label(&ch.name);
+                                ui.label(format!("{}", ch.count));
+                                ui.label(format!("{:.2} ms", ch.latency_ms));
+                                let color = if ch.status == "Healthy" || ch.status == "Optimal" {
+                                    egui::Color32::from_rgb(70, 190, 110)
+                                } else {
+                                    egui::Color32::from_rgb(220, 150, 40)
+                                };
+                                ui.colored_label(color, &ch.status);
+                                ui.end_row();
+                            }
+                        });
+                });
 
             ui.add_space(10.0);
             ui.separator();

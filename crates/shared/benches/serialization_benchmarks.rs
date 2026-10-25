@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use shared::export::{export_to_compressed_bson, export_to_csv, export_to_json};
 use shared::models::ItemCollection;
 

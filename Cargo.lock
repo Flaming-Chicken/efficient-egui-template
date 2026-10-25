@@ -3278,6 +3278,7 @@ dependencies = [
 [[package]]
 name = "spodeian-cache"
 version = "1.0.0"
+source = "git+https://github.com/Flaming-Chicken/spodeian-core?branch=dev#cc882e758ce7e8015bdc1839f154cd059c40ce55"
 dependencies = [
  "base64",
  "js-sys",
@@ -3294,6 +3295,7 @@ dependencies = [
 [[package]]
 name = "spodeian-export"
 version = "1.0.0"
+source = "git+https://github.com/Flaming-Chicken/spodeian-core?branch=dev#cc882e758ce7e8015bdc1839f154cd059c40ce55"
 dependencies = [
  "bson",
  "miniz_oxide",
@@ -3305,6 +3307,7 @@ dependencies = [
 [[package]]
 name = "spodeian-telemetry"
 version = "1.0.0"
+source = "git+https://github.com/Flaming-Chicken/spodeian-core?branch=dev#cc882e758ce7e8015bdc1839f154cd059c40ce55"
 dependencies = [
  "console_error_panic_hook",
  "serde",
@@ -3317,6 +3320,7 @@ dependencies = [
 [[package]]
 name = "spodeian-tokens"
 version = "1.0.0"
+source = "git+https://github.com/Flaming-Chicken/spodeian-core?branch=dev#cc882e758ce7e8015bdc1839f154cd059c40ce55"
 dependencies = [
  "serde",
  "serde_json",
@@ -3325,6 +3329,7 @@ dependencies = [
 [[package]]
 name = "spodeian-ui"
 version = "1.0.0"
+source = "git+https://github.com/Flaming-Chicken/spodeian-core?branch=dev#cc882e758ce7e8015bdc1839f154cd059c40ce55"
 dependencies = [
  "egui",
  "serde",
@@ -3335,6 +3340,7 @@ dependencies = [
 [[package]]
 name = "spodeian-web-utils"
 version = "1.0.0"
+source = "git+https://github.com/Flaming-Chicken/spodeian-core?branch=dev#cc882e758ce7e8015bdc1839f154cd059c40ce55"
 dependencies = [
  "js-sys",
  "tracing",

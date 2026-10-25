@@ -11,9 +11,9 @@ use eframe::egui;
 use shared::{
     AppState, Priority, ThemeMode, export_to_compressed_bson, export_to_csv, export_to_json,
 };
+pub use spodeian_ui::ScreenConstraints;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
-pub use spodeian_ui::ScreenConstraints;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ExportFormat {
@@ -228,7 +228,7 @@ impl eframe::App for TemplateApp {
 }
 
 #[cfg(target_os = "android")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
     use eframe::NativeOptions;
     let mut options = NativeOptions::default();
@@ -237,11 +237,12 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
         "egui Template",
         options,
         Box::new(|cc| Ok(Box::new(TemplateApp::new(cc)))),
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 #[cfg(target_os = "ios")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn ios_main() {
     use eframe::NativeOptions;
     let options = NativeOptions::default();
