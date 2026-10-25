@@ -30,3 +30,7 @@ persistence = ["app/persistence", "eframe/persistence"]
 wgpu = ["app/wgpu", "eframe/wgpu"]
 glow = ["app/glow", "eframe/glow"]
 
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+
+
