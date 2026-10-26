@@ -13,14 +13,23 @@ pub fn main() {
 
     // Spawn the async eframe WebRunner natively
     wasm_bindgen_futures::spawn_local(async {
-        let document = web_sys::window()
-            .and_then(|win| win.document())
-            .expect("Failed to get document");
-        let canvas = document
+        let document = match web_sys::window().and_then(|win| win.document()) {
+            Some(doc) => doc,
+            None => {
+                tracing::error!("Failed to obtain web window or document");
+                return;
+            }
+        };
+        let canvas = match document
             .get_element_by_id("egui_canvas")
-            .expect("Canvas element 'egui_canvas' not found")
-            .dyn_into::<web_sys::HtmlCanvasElement>()
-            .expect("Failed to cast element to HtmlCanvasElement");
+            .and_then(|el| el.dyn_into::<web_sys::HtmlCanvasElement>().ok())
+        {
+            Some(canvas) => canvas,
+            None => {
+                tracing::error!("Canvas element 'egui_canvas' not found or invalid element type");
+                return;
+            }
+        };
 
         let web_options = eframe::WebOptions::default();
         let runner = eframe::WebRunner::new();

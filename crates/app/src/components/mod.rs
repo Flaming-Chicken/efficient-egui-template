@@ -1,3 +1,5 @@
+//! Modular UI components, dialogs, and navigation views for the egui template.
+
 pub mod about;
 pub mod item_list;
 pub mod modals;

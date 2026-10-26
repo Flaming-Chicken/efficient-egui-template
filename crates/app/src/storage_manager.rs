@@ -8,9 +8,25 @@ use spodeian_cache::PreferentialRouter;
 use spodeian_cache::StorageTier;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
+use thiserror::Error;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
+
+/// Errors arising during state persistence or multi-tiered storage operations.
+#[derive(Error, Debug)]
+pub enum StorageError {
+    #[error("Storage content is empty")]
+    EmptyContent,
+    #[error("Failed to deserialize state: JSON error: {0}; RON error: {1}")]
+    DeserializationFailed(serde_json::Error, ron::error::SpannedError),
+    #[error("All browser storage tiers failed")]
+    AllTiersFailed,
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Cache error: {0}")]
+    Cache(#[from] spodeian_cache::CacheError),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum StorageBackend {
@@ -147,10 +163,10 @@ pub fn trigger_pwa_install() {
 pub const DEDICATED_STORAGE_KEY: &str = "serverless_template_app_state";
 
 /// Robust dual-format deserializer for AppState, attempting JSON first and falling back to RON.
-pub fn deserialize_app_state(content: &str) -> Result<shared::AppState, String> {
+pub fn deserialize_app_state(content: &str) -> Result<shared::AppState, StorageError> {
     let trimmed = content.trim();
     if trimmed.is_empty() {
-        return Err("Storage content is empty".to_string());
+        return Err(StorageError::EmptyContent);
     }
 
     // 1. Attempt JSON deserialization
@@ -160,10 +176,7 @@ pub fn deserialize_app_state(content: &str) -> Result<shared::AppState, String> 
             // 2. Attempt RON deserialization
             match ron::from_str::<shared::AppState>(trimmed) {
                 Ok(state) => Ok(state),
-                Err(ron_err) => Err(format!(
-                    "Failed to deserialize AppState: JSON error: {}; RON error: {}",
-                    json_err, ron_err
-                )),
+                Err(ron_err) => Err(StorageError::DeserializationFailed(json_err, ron_err)),
             }
         }
     }
@@ -275,7 +288,7 @@ pub fn load_state_multi_tier(storage: Option<&dyn eframe::Storage>) -> Option<sh
 /// - IndexedDB for structured relational states
 /// - LocalStorage for lightweight config (< 16 KB)
 /// - ContentAddressedStorage on native desktop & mobile
-pub fn save_state_multi_tier(key: &str, json_str: &str) -> Result<StorageBackend, String> {
+pub fn save_state_multi_tier(key: &str, json_str: &str) -> Result<StorageBackend, StorageError> {
     let size = json_str.len();
     let is_large_or_binary = size > 512 * 1024;
     let recommended_tier =
@@ -332,7 +345,7 @@ pub fn save_state_multi_tier(key: &str, json_str: &str) -> Result<StorageBackend
                 return Ok(StorageBackend::LocalStorage);
             }
 
-            return Err("All browser storage tiers failed.".to_string());
+            return Err(StorageError::AllTiersFailed);
         }
     }
 

@@ -1,3 +1,4 @@
+//! Main egui application view controller, shell layout, and cross-platform runners.
 #![allow(clippy::collapsible_if)]
 #![allow(clippy::if_same_then_else)]
 
@@ -287,12 +288,13 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     use eframe::NativeOptions;
     let mut options = NativeOptions::default();
     options.android_app = Some(app);
-    eframe::run_native(
+    if let Err(e) = eframe::run_native(
         "egui Template",
         options,
         Box::new(|cc| Ok(Box::new(TemplateApp::new(cc)))),
-    )
-    .unwrap();
+    ) {
+        tracing::error!("Failed to run egui application on Android: {e}");
+    }
 }
 
 #[cfg(target_os = "ios")]
