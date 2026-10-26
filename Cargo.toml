@@ -42,12 +42,12 @@ criterion = "0.5"
 wasm-bindgen-test = "0.3"
 winit = { version = "0.30", default-features = false }
 android-activity = { version = "0.6", default-features = false, features = ["native-activity"] }
-spodeian-cache = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
-spodeian-tokens = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
-spodeian-telemetry = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
-spodeian-export = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
-spodeian-web-utils = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
-spodeian-ui = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
+spodeian-cache = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-tokens = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-telemetry = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-export = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-web-utils = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-ui = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
 
 [profile.release]
 opt-level = 3
