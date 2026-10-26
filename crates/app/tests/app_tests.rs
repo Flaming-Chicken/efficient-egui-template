@@ -132,3 +132,45 @@ fn test_template_app_save_populates_both_keys() {
     let loaded = load_state_multi_tier(Some(&storage)).expect("Should restore state successfully");
     assert_eq!(loaded.collection.total_count(), 4);
 }
+
+#[test]
+fn test_template_app_telemetry_modal_and_data() {
+    let mut app = TemplateApp::default();
+    assert!(!app.show_telemetry_modal);
+    assert!(app.telemetry_data.success_rate > 99.0);
+    assert_eq!(app.telemetry_data.channels.len(), 3);
+
+    app.show_telemetry_modal = true;
+    assert!(app.show_telemetry_modal);
+}
+
+#[test]
+fn test_template_app_memory_and_fallback_diagnostics() {
+    use app::storage_manager::MEMORY_WORKING_SET_LIMIT;
+
+    let mut app = TemplateApp::default();
+    assert_eq!(
+        app.storage_diag.memory_capacity_limit,
+        MEMORY_WORKING_SET_LIMIT
+    );
+    assert_eq!(app.storage_diag.memory_items_count, 0);
+
+    // Persisting state updates memory item count and evaluates fallback
+    app.persist_state();
+    assert_eq!(app.storage_diag.memory_items_count, 3);
+    assert!(!app.storage_diag.fallback_tier_active);
+
+    // Simulate item load beyond memory working set capacity
+    for i in 0..110 {
+        app.state.collection.add(
+            format!("Bulk Task {i}"),
+            "Memory capacity test",
+            Priority::Low,
+        );
+    }
+
+    app.persist_state();
+    assert_eq!(app.storage_diag.memory_items_count, 113);
+    // Over memory limit: fallback tier is active to protect memory from overfilling!
+    assert!(app.storage_diag.fallback_tier_active);
+}

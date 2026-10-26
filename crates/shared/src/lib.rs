@@ -4,71 +4,42 @@ use serde::{Deserialize, Serialize};
 
 pub mod export;
 pub mod models;
+pub mod telemetry;
 
 pub use export::*;
 pub use models::*;
+pub use telemetry::*;
+
+pub use spodeian_tokens::ThemeMode;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum ThemeMode {
-    Light,
+pub enum AppPage {
     #[default]
-    Dark,
-    HighContrastDark,
-    HighContrastLight,
+    Dashboard,
+    About,
 }
 
-impl ThemeMode {
-    #[must_use]
-    pub fn next(self) -> Self {
-        match self {
-            Self::Dark => Self::Light,
-            Self::Light => Self::HighContrastDark,
-            Self::HighContrastDark => Self::HighContrastLight,
-            Self::HighContrastLight => Self::Dark,
-        }
-    }
-
-    #[must_use]
-    pub fn is_dark(self) -> bool {
-        matches!(self, Self::Dark | Self::HighContrastDark)
-    }
-
-    #[must_use]
-    pub fn is_high_contrast(self) -> bool {
-        matches!(self, Self::HighContrastDark | Self::HighContrastLight)
-    }
-
-    #[must_use]
+impl AppPage {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Dark => "Dark",
-            Self::Light => "Warm Light",
-            Self::HighContrastDark => "HC Dark",
-            Self::HighContrastLight => "HC Light",
-        }
-    }
-
-    #[must_use]
-    pub fn icon(self) -> &'static str {
-        match self {
-            Self::Dark => "🌙",
-            Self::Light => "☀️",
-            Self::HighContrastDark => "⬛",
-            Self::HighContrastLight => "⬜",
+            Self::Dashboard => "Dashboard",
+            Self::About => "About",
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(default)]
 pub struct AppConfig {
     pub theme: ThemeMode,
+    pub active_page: AppPage,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme: ThemeMode::Dark,
+            active_page: AppPage::Dashboard,
         }
     }
 }

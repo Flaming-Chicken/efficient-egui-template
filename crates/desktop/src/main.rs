@@ -1,21 +1,17 @@
 //! Native desktop application runner for the Serverless & Desktop Template.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use app::TemplateApp;
 use eframe::NativeOptions;
 use eframe::egui;
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use spodeian_telemetry::init_default;
 
 fn main() -> eframe::Result<()> {
-    // Logging setup: INFO for application logs, WARN for external library modules
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,wgpu=warn,egui=warn")),
-        )
-        .init();
+    // Universal telemetry & logging initialization
+    init_default();
 
     // Native window viewport configurations
     let options = NativeOptions {

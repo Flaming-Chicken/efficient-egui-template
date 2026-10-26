@@ -11,29 +11,9 @@ use eframe::egui;
 use shared::{
     AppState, Priority, ThemeMode, export_to_compressed_bson, export_to_csv, export_to_json,
 };
+pub use spodeian_ui::ScreenConstraints;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
-
-pub struct ScreenConstraints {
-    pub is_mobile: bool,
-    pub is_mobile_portrait: bool,
-    pub is_tight_height: bool,
-    pub is_ultra_tight: bool,
-}
-
-impl ScreenConstraints {
-    pub fn compute(ui: &egui::Ui) -> Self {
-        let avail_w = ui.available_width();
-        let avail_h = ui.available_height();
-
-        Self {
-            is_mobile: avail_w < 800.0,
-            is_mobile_portrait: avail_w < 650.0,
-            is_tight_height: avail_h < 530.0 || avail_w < 350.0,
-            is_ultra_tight: avail_w < 330.0 || avail_h < 490.0,
-        }
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ExportFormat {
@@ -72,6 +52,8 @@ pub struct TemplateApp {
     pub search_query: String,
     pub storage_diag: StorageDiagnostics,
     pub show_storage_modal: bool,
+    pub show_telemetry_modal: bool,
+    pub telemetry_data: shared::TelemetryDashboardData,
     pub dismissed_ephemeral_warning: bool,
     pub dismissed_quota_warning: bool,
     pub dismissed_combined_warning: bool,
@@ -99,6 +81,8 @@ impl Default for TemplateApp {
             search_query: String::new(),
             storage_diag: query_storage_diagnostics(),
             show_storage_modal: false,
+            show_telemetry_modal: false,
+            telemetry_data: shared::TelemetryDashboardData::default(),
             dismissed_ephemeral_warning: false,
             dismissed_quota_warning: false,
             dismissed_combined_warning: false,
@@ -124,6 +108,11 @@ impl TemplateApp {
 
     /// Immediately persist current state to multi-tier storage (active persistence)
     pub fn persist_state(&mut self) {
+        let items_len = self.state.collection.items.len();
+        self.storage_diag.memory_items_count = items_len;
+        self.storage_diag.fallback_tier_active =
+            items_len > MEMORY_WORKING_SET_LIMIT || self.storage_diag.idb_active;
+
         if let Ok(json_str) = serde_json::to_string(&self.state) {
             match save_state_multi_tier(DEDICATED_STORAGE_KEY, &json_str) {
                 Ok(backend) => {
@@ -165,81 +154,7 @@ impl TemplateApp {
             return;
         }
         self.current_theme = Some(self.state.config.theme);
-
-        let visuals = match self.state.config.theme {
-            ThemeMode::Light => {
-                let mut light = egui::Visuals::light();
-
-                // Soothing neutral/warm light backgrounds
-                light.panel_fill = egui::Color32::from_rgb(245, 244, 241);
-                light.window_fill = egui::Color32::from_rgb(252, 250, 246);
-                light.extreme_bg_color = egui::Color32::from_rgb(238, 236, 231);
-
-                // Soft charcoal for high-contrast, comfortable reading
-                light.widgets.noninteractive.fg_stroke.color = egui::Color32::from_rgb(45, 44, 42);
-                light.widgets.inactive.fg_stroke.color = egui::Color32::from_rgb(55, 54, 52);
-                light.widgets.hovered.fg_stroke.color = egui::Color32::from_rgb(20, 20, 18);
-                light.widgets.active.fg_stroke.color = egui::Color32::from_rgb(0, 0, 0);
-
-                // Muted border strokes
-                light.widgets.noninteractive.bg_stroke.color =
-                    egui::Color32::from_rgb(222, 220, 215);
-                light.widgets.inactive.bg_stroke.color = egui::Color32::from_rgb(212, 210, 205);
-
-                // Buttons background
-                light.widgets.inactive.bg_fill = egui::Color32::from_rgb(252, 251, 248);
-                light.widgets.hovered.bg_fill = egui::Color32::from_rgb(236, 234, 229);
-                light.widgets.active.bg_fill = egui::Color32::from_rgb(220, 218, 212);
-
-                light
-            }
-            ThemeMode::Dark => egui::Visuals::dark(),
-            ThemeMode::HighContrastDark => {
-                let mut hc = egui::Visuals::dark();
-                hc.panel_fill = egui::Color32::BLACK;
-                hc.window_fill = egui::Color32::BLACK;
-                hc.extreme_bg_color = egui::Color32::from_rgb(10, 10, 10);
-                hc.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.5, egui::Color32::WHITE);
-                hc.widgets.inactive.fg_stroke = egui::Stroke::new(1.5, egui::Color32::WHITE);
-                hc.widgets.hovered.fg_stroke =
-                    egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 255, 0));
-                hc.widgets.active.fg_stroke =
-                    egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 255, 0));
-                hc.widgets.noninteractive.bg_stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
-                hc.widgets.inactive.bg_stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
-                hc.widgets.hovered.bg_stroke =
-                    egui::Stroke::new(2.5, egui::Color32::from_rgb(255, 255, 0));
-                hc.widgets.active.bg_stroke =
-                    egui::Stroke::new(2.5, egui::Color32::from_rgb(255, 255, 0));
-                hc.widgets.inactive.bg_fill = egui::Color32::BLACK;
-                hc.widgets.hovered.bg_fill = egui::Color32::from_rgb(30, 30, 0);
-                hc.widgets.active.bg_fill = egui::Color32::from_rgb(50, 50, 0);
-                hc
-            }
-            ThemeMode::HighContrastLight => {
-                let mut hc = egui::Visuals::light();
-                hc.panel_fill = egui::Color32::WHITE;
-                hc.window_fill = egui::Color32::WHITE;
-                hc.extreme_bg_color = egui::Color32::WHITE;
-                hc.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.5, egui::Color32::BLACK);
-                hc.widgets.inactive.fg_stroke = egui::Stroke::new(1.5, egui::Color32::BLACK);
-                hc.widgets.hovered.fg_stroke =
-                    egui::Stroke::new(2.0, egui::Color32::from_rgb(0, 0, 180));
-                hc.widgets.active.fg_stroke =
-                    egui::Stroke::new(2.0, egui::Color32::from_rgb(0, 0, 220));
-                hc.widgets.noninteractive.bg_stroke = egui::Stroke::new(2.0, egui::Color32::BLACK);
-                hc.widgets.inactive.bg_stroke = egui::Stroke::new(2.0, egui::Color32::BLACK);
-                hc.widgets.hovered.bg_stroke =
-                    egui::Stroke::new(2.5, egui::Color32::from_rgb(0, 0, 180));
-                hc.widgets.active.bg_stroke =
-                    egui::Stroke::new(2.5, egui::Color32::from_rgb(0, 0, 220));
-                hc.widgets.inactive.bg_fill = egui::Color32::WHITE;
-                hc.widgets.hovered.bg_fill = egui::Color32::from_rgb(230, 235, 255);
-                hc.widgets.active.bg_fill = egui::Color32::from_rgb(210, 220, 255);
-                hc
-            }
-        };
-        ctx.set_visuals(visuals);
+        spodeian_ui::apply_theme(ctx, self.state.config.theme);
     }
 
     fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
@@ -250,6 +165,8 @@ impl TemplateApp {
                 self.show_reset_dialog = false;
             } else if self.show_storage_modal {
                 self.show_storage_modal = false;
+            } else if self.show_telemetry_modal {
+                self.show_telemetry_modal = false;
             } else if self.show_export_dialog.is_some() {
                 self.show_export_dialog = None;
                 self.export_text_buffer.clear();
@@ -296,20 +213,96 @@ impl eframe::App for TemplateApp {
             self.storage_diag.is_persisted = queried.is_persisted;
             self.storage_diag.pwa_install_available = queried.pwa_install_available;
             self.storage_diag.is_pwa_installed = queried.is_pwa_installed;
+            self.storage_diag.memory_items_count = self.state.collection.items.len();
+            self.storage_diag.fallback_tier_active = self.state.collection.items.len()
+                > MEMORY_WORKING_SET_LIMIT
+                || self.storage_diag.idb_active;
         }
 
         let constraints = ScreenConstraints::compute(ui);
         components::navbar::render_navbar(self, ui, &constraints);
 
-        egui::CentralPanel::default().show(ui, |ui| {
-            components::item_list::render_summary_cards(self, ui, &constraints);
-            ui.add_space(10.0);
-            components::item_list::render_new_item_form(self, ui, &constraints);
-            ui.add_space(10.0);
-            components::item_list::render_item_list(self, ui, &constraints);
+        egui::Panel::bottom("bottom_footer").show(ui, |ui| {
+            ui.add_space(3.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(
+                        "Built with Rust & egui 0.36 • Serverless WASM & Native Desktop",
+                    )
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+                );
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let tier_text = format!("Storage: {}", self.storage_diag.backend.label());
+                    ui.label(
+                        egui::RichText::new(tier_text)
+                            .small()
+                            .monospace()
+                            .color(ui.visuals().weak_text_color()),
+                    );
+
+                    ui.label(
+                        egui::RichText::new("•")
+                            .small()
+                            .color(ui.visuals().weak_text_color()),
+                    );
+
+                    if ui.link("About").clicked() {
+                        self.state.config.active_page = shared::AppPage::About;
+                        self.persist_state();
+                    }
+
+                    if ui.link("Dashboard").clicked() {
+                        self.state.config.active_page = shared::AppPage::Dashboard;
+                        self.persist_state();
+                    }
+                });
+            });
+            ui.add_space(3.0);
+        });
+
+        egui::CentralPanel::default().show(ui, |ui| match self.state.config.active_page {
+            shared::AppPage::Dashboard => {
+                components::item_list::render_summary_cards(self, ui, &constraints);
+                ui.add_space(10.0);
+                components::item_list::render_new_item_form(self, ui, &constraints);
+                ui.add_space(10.0);
+                components::item_list::render_item_list(self, ui, &constraints);
+            }
+            shared::AppPage::About => {
+                components::about::render_about_page(self, ui, &constraints);
+            }
         });
 
         components::modals::render_dialogs(self, ui);
         components::modals::render_warning_banners(self, ui.ctx());
+        components::telemetry_viewer::render_telemetry_modal(self, ui.ctx());
     }
+}
+
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+fn android_main(app: winit::platform::android::activity::AndroidApp) {
+    use eframe::NativeOptions;
+    let mut options = NativeOptions::default();
+    options.android_app = Some(app);
+    eframe::run_native(
+        "egui Template",
+        options,
+        Box::new(|cc| Ok(Box::new(TemplateApp::new(cc)))),
+    )
+    .unwrap();
+}
+
+#[cfg(target_os = "ios")]
+#[unsafe(no_mangle)]
+pub extern "C" fn ios_main() {
+    use eframe::NativeOptions;
+    let options = NativeOptions::default();
+    let _ = eframe::run_native(
+        "egui Template",
+        options,
+        Box::new(|cc| Ok(Box::new(TemplateApp::new(cc)))),
+    );
 }
