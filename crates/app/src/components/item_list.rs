@@ -159,6 +159,7 @@ pub fn render_new_item_form(
             }
 
             if submit_new_item && !app.new_item_title.trim().is_empty() {
+                app.record_undo_snapshot();
                 let now = current_timestamp_ms();
                 let id = format!("item-{}", now);
                 let item = Item {
@@ -188,6 +189,7 @@ pub fn render_item_list(app: &mut TemplateApp, ui: &mut egui::Ui, constraints: &
                 .on_hover_text("Remove all finished items")
                 .clicked()
             {
+                app.record_undo_snapshot();
                 app.state.collection.clear_completed();
                 app.persist_state();
             }
@@ -316,6 +318,9 @@ pub fn render_item_list(app: &mut TemplateApp, ui: &mut egui::Ui, constraints: &
         });
 
     let mut collection_changed = false;
+    if !item_ids_to_toggle.is_empty() || !item_ids_to_remove.is_empty() {
+        app.record_undo_snapshot();
+    }
     for id in item_ids_to_toggle {
         app.state.collection.toggle(&id);
         collection_changed = true;

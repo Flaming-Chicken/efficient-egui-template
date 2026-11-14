@@ -6,6 +6,55 @@ use shared::{
     export_to_compressed_bson, import_from_compressed_bson, import_from_csv, import_from_json,
 };
 
+/// Renders a recoverable error overlay banner whenever [`TemplateApp::run_recoverable`]
+/// captures a panic or fault payload.
+pub fn render_error_recovery_banner(app: &mut TemplateApp, ctx: &egui::Context) {
+    let Some(err_msg) = app.last_recovered_error.clone() else {
+        return;
+    };
+
+    egui::Area::new(egui::Id::new("error_recovery_banner_area"))
+        .order(egui::Order::Foreground)
+        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 48.0))
+        .show(ctx, |ui| {
+            egui::Frame::NONE
+                .fill(egui::Color32::from_rgba_premultiplied(45, 18, 18, 245))
+                .stroke(egui::Stroke::new(
+                    1.0_f32,
+                    egui::Color32::from_rgb(235, 80, 80),
+                ))
+                .corner_radius(8)
+                .inner_margin(egui::Margin::symmetric(16, 10))
+                .show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        ui.label(
+                            egui::RichText::new("Recovered from unexpected action error")
+                                .strong()
+                                .color(egui::Color32::from_rgb(255, 140, 140)),
+                        );
+                        ui.label(
+                            egui::RichText::new(&err_msg)
+                                .small()
+                                .monospace()
+                                .color(egui::Color32::WHITE),
+                        );
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            if ui.button("Dismiss").clicked() {
+                                app.last_recovered_error = None;
+                            }
+                            if ui.button("Reset State to Defaults").clicked() {
+                                app.record_undo_snapshot();
+                                app.state = shared::AppState::default();
+                                app.last_recovered_error = None;
+                                app.persist_state();
+                            }
+                        });
+                    });
+                });
+        });
+}
+
 pub fn render_warning_banners(app: &mut TemplateApp, ctx: &egui::Context) {
     let is_ephemeral = app.storage_diag.is_persisted == Some(false);
     let is_quota = app.storage_diag.quota_exceeded;
@@ -133,6 +182,37 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                     ui.separator();
                     ui.add_space(6.0);
 
+                    ui.heading("Accessibility & Display Settings");
+                    ui.add_space(4.0);
+                    let mut config_changed = false;
+                    if ui
+                        .checkbox(
+                            &mut app.state.config.dyslexia_friendly,
+                            "Dyslexia-Friendly Reading (larger typography & expanded spacing)",
+                        )
+                        .changed()
+                    {
+                        config_changed = true;
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label("UI Scale (%):");
+                        let mut scale = app.state.config.ui_scale_percent.clamp(80, 150) as i32;
+                        if ui
+                            .add(egui::Slider::new(&mut scale, 80..=150).suffix("%"))
+                            .changed()
+                        {
+                            app.state.config.ui_scale_percent = scale as u16;
+                            config_changed = true;
+                        }
+                    });
+                    if config_changed {
+                        app.persist_state();
+                    }
+
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+
                     ui.heading("Local Privacy & Security");
                     ui.add_space(4.0);
                     ui.label(
@@ -158,6 +238,7 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
                     if ui.button("Yes, Reset").clicked() {
+                        app.record_undo_snapshot();
                         app.state.reset_data();
                         app.show_reset_dialog = false;
                         app.persist_state();
@@ -269,6 +350,7 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                         } else if input.starts_with('{') {
                             match import_from_json(input) {
                                 Ok(state) => {
+                                    app.record_undo_snapshot();
                                     let count = state.collection.total_count();
                                     app.state = state;
                                     app.import_result_message = Some(Ok(format!(
@@ -287,6 +369,7 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                         ) {
                             match import_from_compressed_bson(&decoded_bytes) {
                                 Ok(state) => {
+                                    app.record_undo_snapshot();
                                     let count = state.collection.total_count();
                                     app.state = state;
                                     app.import_result_message = Some(Ok(format!(
@@ -303,6 +386,7 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                         } else {
                             match import_from_csv(input) {
                                 Ok(col) => {
+                                    app.record_undo_snapshot();
                                     let count = col.total_count();
                                     app.state.collection = col;
                                     app.import_result_message = Some(Ok(format!(
