@@ -1,7 +1,10 @@
+use proptest::prelude::*;
 use shared::{
-    AppPage, AppState, Item, ItemCollection, Priority, ThemeMode, export_to_compressed_bson,
-    export_to_csv, export_to_json, import_from_compressed_bson, import_from_csv, import_from_json,
+    AppConfig, AppPage, AppState, CURRENT_SCHEMA_VERSION, Item, ItemCollection, Priority,
+    ThemeMode, export_to_compressed_bson, export_to_csv, export_to_json,
+    import_from_compressed_bson, import_from_csv, import_from_json,
 };
+use spodeian_persist::StateMigrator;
 
 #[test]
 fn test_priority_levels_and_labels() {
@@ -140,4 +143,165 @@ fn test_app_page_routing() {
     let serialized = serde_json::to_string(&state).expect("Serialization failed");
     let deserialized: AppState = serde_json::from_str(&serialized).expect("Deserialization failed");
     assert_eq!(deserialized.config.active_page, AppPage::About);
+}
+
+#[test]
+fn test_versioned_envelope_and_legacy_schema_migration() {
+    let mut state = AppState {
+        schema_version: CURRENT_SCHEMA_VERSION,
+        collection: ItemCollection::with_sample_data(),
+        config: AppConfig {
+            theme: ThemeMode::HighContrastDark,
+            dyslexia_friendly: true,
+            ui_scale_percent: 125,
+            ..Default::default()
+        },
+    };
+    state
+        .collection
+        .add(Item::new("extra-1", "Migrated Item", "Check", Priority::Critical));
+
+    let envelope_json =
+        StateMigrator::serialize_versioned(&state, CURRENT_SCHEMA_VERSION, 1_774_900_000.0)
+            .expect("Serialize versioned envelope failed");
+    let restored = import_from_json(&envelope_json).expect("Import versioned envelope failed");
+    assert_eq!(restored, state);
+
+    // Unversioned v0 payload upgrades to CURRENT_SCHEMA_VERSION cleanly.
+    let v0_json = r#"{"schema_version":0,"collection":{"items":[{"id":"legacy-1","title":"Legacy","description":"","priority":"Low","completed":false}]},"config":{}}"#;
+    let upgraded = import_from_json(v0_json).expect("Import legacy v0 payload failed");
+    assert_eq!(upgraded.schema_version, CURRENT_SCHEMA_VERSION);
+    assert_eq!(upgraded.collection.items.len(), 1);
+    assert_eq!(upgraded.collection.items[0].id, "legacy-1");
+
+    // Standalone custom ItemCollection preserves exact items rather than falling back to defaults.
+    let custom_col = ItemCollection {
+        items: vec![Item::new("only-one", "Only Item", "Custom", Priority::Medium)],
+    };
+    let custom_json = serde_json::to_string(&custom_col).unwrap();
+    let imported_col = import_from_json(&custom_json).expect("Import custom collection failed");
+    assert_eq!(imported_col.schema_version, CURRENT_SCHEMA_VERSION);
+    assert_eq!(imported_col.collection.items, custom_col.items);
+}
+
+fn arb_priority() -> impl Strategy<Value = Priority> {
+    prop_oneof![
+        Just(Priority::Low),
+        Just(Priority::Medium),
+        Just(Priority::High),
+        Just(Priority::Critical),
+    ]
+}
+
+fn arb_theme() -> impl Strategy<Value = ThemeMode> {
+    prop_oneof![
+        Just(ThemeMode::Dark),
+        Just(ThemeMode::Light),
+        Just(ThemeMode::HighContrastDark),
+        Just(ThemeMode::HighContrastLight),
+    ]
+}
+
+proptest! {
+    #[test]
+    fn prop_versioned_state_json_and_bson_roundtrip(
+        items in proptest::collection::vec(
+            ("[a-z0-9_-]{1,12}", ".{0,32}", ".{0,48}", arb_priority(), any::<bool>(), any::<u64>()),
+            0..12
+        ),
+        theme in arb_theme(),
+        dyslexia_friendly in any::<bool>(),
+        ui_scale_percent in 50u16..=200u16,
+        is_about in any::<bool>(),
+    ) {
+        let state = AppState {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            collection: ItemCollection {
+                items: items
+                    .into_iter()
+                    .map(|(id, title, description, priority, completed, created_at)| Item {
+                        id,
+                        title,
+                        description,
+                        priority,
+                        completed,
+                        created_at,
+                    })
+                    .collect(),
+            },
+            config: AppConfig {
+                theme,
+                active_page: if is_about { AppPage::About } else { AppPage::Dashboard },
+                auto_save: true,
+                show_completed: true,
+                filter_priority: None,
+                search_query: String::new(),
+                dyslexia_friendly,
+                ui_scale_percent,
+            },
+        };
+
+        let json = export_to_json(&state).expect("JSON export failed");
+        let from_json = import_from_json(&json).expect("JSON import failed");
+        prop_assert_eq!(&from_json, &state);
+
+        let envelope = StateMigrator::serialize_versioned(&state, CURRENT_SCHEMA_VERSION, 1.0)
+            .expect("Versioned serialize failed");
+        let from_envelope = import_from_json(&envelope).expect("Envelope import failed");
+        prop_assert_eq!(&from_envelope, &state);
+
+        let bson_bytes = export_to_compressed_bson(&state).expect("BSON export failed");
+        let from_bson = import_from_compressed_bson(&bson_bytes).expect("BSON import failed");
+        prop_assert_eq!(&from_bson, &state);
+    }
+
+    #[test]
+    fn prop_csv_export_import_roundtrip(
+        items in proptest::collection::vec(
+            (
+                "[A-Za-z0-9_-]{1,12}",
+                "[A-Za-z0-9,.\"_-]([A-Za-z0-9,.\" _-]{0,20}[A-Za-z0-9,.\"_-])?",
+                "[A-Za-z0-9,.\"_-]([A-Za-z0-9,.\" _-]{0,30}[A-Za-z0-9,.\"_-])?",
+                arb_priority(),
+                any::<bool>(),
+                any::<u64>(),
+            ),
+            1..10
+        ),
+    ) {
+        let collection = ItemCollection {
+            items: items
+                .into_iter()
+                .map(|(id, title, description, priority, completed, created_at)| Item {
+                    id,
+                    title,
+                    description,
+                    priority,
+                    completed,
+                    created_at,
+                })
+                .collect(),
+        };
+
+        let csv = export_to_csv(&collection).expect("CSV export failed");
+        let imported = import_from_csv(&csv).expect("CSV import failed");
+        prop_assert_eq!(imported, collection);
+    }
+
+    #[test]
+    fn prop_ui_scale_clamping_and_theme_cycle(
+        raw_scale in 0u16..=500u16,
+        theme in arb_theme(),
+    ) {
+        let cfg = AppConfig {
+            ui_scale_percent: raw_scale,
+            theme,
+            ..Default::default()
+        };
+        let factor = cfg.clamped_ui_scale_factor();
+        prop_assert!((0.80..=1.50).contains(&factor));
+
+        let cycled = theme.next().next().next().next();
+        prop_assert_eq!(cycled, theme);
+    }
 }

@@ -15,6 +15,26 @@ Featuring a complete example application with a **responsive top bar**, **persis
 
 ## 🚀 Using this Template
 
+### Option A: `cargo-generate` (Recommended)
+
+Scaffold a new application directly with optional desktop, PWA, Cloudflare Pages, and Android/iOS module prompts (`cargo-generate.toml`):
+
+```bash
+cargo install cargo-generate
+cargo generate --git https://github.com/Spodeian/efficient-egui-template --name my-app
+cd my-app
+```
+
+Available `cargo-generate.toml` template flags (all default to `true`):
+- `include_desktop`: Native desktop runner crate (`crates/desktop`)
+- `include_pwa`: Progressive Web App manifest (`manifest.json`), service worker (`sw.js`), and offline registration
+- `include_cloudflare_pages`: Cloudflare Pages security headers (`_headers`) and routing configuration
+- `include_mobile_entrypoints`: Android (`mobile-android`) and iOS (`mobile-ios`) FFI / library scaffolds
+
+> **License notice:** Generated projects inherit the template's PolyForm Noncommercial 1.0.0 (`LICENSE`) terms unless a separate commercial license is granted.
+
+### Option B: GitHub Template
+
 1. Click **"Use this template"** > **"Create a new repository"** on GitHub.
 2. Clone your new repository locally:
    ```bash
@@ -185,16 +205,42 @@ The compiled release executable will be located in `target/release/`.
 
 ---
 
+## ⚖️ Template Comparison
+
+| Capability | `efficient-egui-template` | `emilk/eframe_template` | Bare `eframe` App |
+|---|---|---|---|
+| **Crate Architecture** | Modular 4-crate workspace (`shared`, `app`, `desktop`, `web`) + `spodeian-core` v3.0 primitives | Single crate (`src/lib.rs`, `src/app.rs`, `src/main.rs`) | Single binary crate |
+| **Command Palette & Undo/Redo** | Built-in `CommandPaletteWidget`, shortcut conflict detector (`detect_shortcut_conflicts`), & `UndoStack` (`spodeian-ui`) | Manual implementation | Manual implementation |
+| **Persistence & Migration** | Versioned `AppState` envelopes (`schema_version`), JSON/Compressed BSON/CSV (`spodeian-export`), multi-tier fallback (`spodeian-persist`) | Basic `eframe::get_value` / `set_value` | Manual implementation |
+| **PWA & Cloudflare Pages** | Included `manifest.json`, cache-versioned `sw.js` (`spodeian-web-utils`), `_headers` | Minimal service worker | None |
+| **Accessibility & Recovery** | Dark / Light / High-Contrast themes (`spodeian-tokens`), dyslexia-friendly mode, recoverable error/panic boundary | Default egui style | Default egui style |
+| **Testing & Scaffolding** | 27 host unit/integration/`proptest` suites + Criterion benches + `cargo-generate.toml` + `wasm32` browser tests | Minimal starter tests | None |
+
+---
+
+## 🔄 Upgrading from 0.1.x
+
+When rebasing an existing project onto `0.2.0` (see [`CHANGELOG.md`](./CHANGELOG.md)):
+
+1. **Workspace `spodeian-core` Dependencies:** Shared UI, persistence, export, telemetry, tokens, and web helpers now resolve through `spodeian-core` (`spodeian-ui`, `spodeian-persist`, `spodeian-export`, `spodeian-telemetry`, `spodeian-tokens`, `spodeian-web-utils`).
+2. **Versioned State & Migration (`shared::AppState`):** `AppState` now tracks `schema_version` (`CURRENT_SCHEMA_VERSION`) and automatically upgrades legacy 0.1.x snapshots when loaded from storage, JSON, or compressed BSON.
+3. **Command Palette & Shortcuts (`app`):** Action navigation, theme cycling, accessibility toggles, and data exports are registered via `default_template_commands()` and `CommandPaletteWidget`, backed by `UndoStack` and `detect_shortcut_conflicts()`.
+4. **Recoverable Panic/Error Overlay:** `TemplateApp` surfaces storage quota/fallback warnings and recoverable runtime errors in-UI instead of crashing silently.
+
+---
+
 ## 🧪 Testing & Quality Assurance
 
-| Test Suite | Location | Purpose |
-|---|---|---|
-| **App Tests** | `crates/app/tests/app_tests.rs` | UI initialization, dialog state, multi-tier JSON/RON persistence |
-| **Shared Model Tests** | `crates/shared/tests/shared_tests.rs` | Collection logic, JSON/CSV/BSON roundtrip, backward compatibility, page routing |
-| **Desktop Smoke** | `crates/desktop/tests/smoke_tests.rs` | Desktop native options and viewport validation |
-| **Web Smoke** | `crates/web/tests/smoke_tests.rs` | WebRunner app construction and wasm compatibility |
-| **WASM Browser Tests** | `crates/web/tests/wasm_tests.rs` | Headless Chrome/Firefox DOM and localStorage persistence tests |
-| **Benchmarks** | `crates/shared/benches/serialization_benchmarks.rs` | Criterion benchmarks for state serialization performance |
+Verified host test baseline (`cargo test --workspace`): **27 passed, 0 failed** (`app`: 11 including 3 `proptest` suites, `shared`: 14 including 3 `proptest` suites, `desktop`: 1, `web`: 1 host smoke test; `wasm_tests.rs` targets `wasm32` browsers; `cargo check -p shared --benches` and desktop + `wasm32` `clippy -D warnings` verified).
+
+| Test Suite | Location | Verified Host Tests | Purpose |
+|---|---|---|---|
+| **App Tests** | `crates/app/tests/app_tests.rs` | 11 passed | UI initialization, command palette & undo/redo `proptest` invariants, shortcut conflict detection, panic recovery, multi-tier JSON/RON persistence |
+| **Shared Model Tests** | `crates/shared/tests/shared_tests.rs` | 14 passed | Collection logic, JSON/CSV/BSON roundtrips, `schema_version` migration, page routing, `proptest` invariants |
+| **Desktop Smoke** | `crates/desktop/tests/smoke_tests.rs` | 1 passed | Desktop native options and viewport validation |
+| **Web Smoke** | `crates/web/tests/smoke_tests.rs` | 1 passed | WebRunner app construction and wasm compatibility |
+| **WASM Browser Tests** | `crates/web/tests/wasm_tests.rs` | `wasm32` target | Headless Chrome/Firefox DOM and localStorage persistence tests |
+| **Benchmarks** | `crates/shared/benches/serialization_benchmarks.rs` | Compiles (`--benches`) | Criterion benchmarks for state serialization performance |
 
 ---
 

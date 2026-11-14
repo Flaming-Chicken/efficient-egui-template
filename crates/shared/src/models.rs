@@ -4,6 +4,19 @@ use serde::{Deserialize, Serialize};
 
 pub use spodeian_tokens::ThemeMode;
 
+/// Current persisted application state schema version.
+pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+
+/// Returns [`CURRENT_SCHEMA_VERSION`] for serde default initialization.
+pub fn default_schema_version() -> u32 {
+    CURRENT_SCHEMA_VERSION
+}
+
+/// Returns the default UI scale percentage (`100` = `1.0x`).
+pub fn default_ui_scale_percent() -> u16 {
+    100
+}
+
 /// Task item priority level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub enum Priority {
@@ -42,7 +55,7 @@ pub struct Item {
     pub description: String,
     pub priority: Priority,
     pub completed: bool,
-    #[serde(default)]
+    #[serde(default, with = "spodeian_export::u64_i64_compat")]
     pub created_at: u64,
 }
 
@@ -207,6 +220,17 @@ pub struct AppConfig {
     pub show_completed: bool,
     pub filter_priority: Option<Priority>,
     pub search_query: String,
+    #[serde(default)]
+    pub dyslexia_friendly: bool,
+    #[serde(default = "default_ui_scale_percent")]
+    pub ui_scale_percent: u16,
+}
+
+impl AppConfig {
+    /// Returns the clamped zoom/UI scale factor in `0.8..=1.5`.
+    pub fn clamped_ui_scale_factor(&self) -> f32 {
+        (self.ui_scale_percent.clamp(80, 150) as f32) / 100.0
+    }
 }
 
 impl Default for AppConfig {
@@ -218,16 +242,30 @@ impl Default for AppConfig {
             show_completed: true,
             filter_priority: None,
             search_query: String::new(),
+            dyslexia_friendly: false,
+            ui_scale_percent: default_ui_scale_percent(),
         }
     }
 }
 
 /// Root state container.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppState {
+    #[serde(default = "default_schema_version")]
+    pub schema_version: u32,
     pub collection: ItemCollection,
     pub config: AppConfig,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            collection: ItemCollection::default(),
+            config: AppConfig::default(),
+        }
+    }
 }
 
 impl AppState {

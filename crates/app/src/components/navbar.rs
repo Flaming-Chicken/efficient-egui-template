@@ -57,6 +57,38 @@ pub fn render_navbar(app: &mut TemplateApp, ui: &mut egui::Ui, constraints: &Scr
                     app.persist_state();
                 }
 
+                if ui
+                    .selectable_label(app.state.config.dyslexia_friendly, "Aa")
+                    .on_hover_text("Toggle Dyslexia-Friendly Reading Mode (larger text & wider spacing)")
+                    .clicked()
+                {
+                    let _ = app.execute_command("a11y.dyslexia");
+                }
+
+                if ui
+                    .button(if constraints.is_mobile { "Cmd" } else { "⌘K Commands" })
+                    .on_hover_text("Open Command Palette (Ctrl+K / Cmd+K)")
+                    .clicked()
+                {
+                    app.command_palette.open();
+                }
+
+                if ui
+                    .add_enabled(app.undo_stack.can_redo(), egui::Button::new("Redo"))
+                    .on_hover_text("Redo collection change (Ctrl+Y)")
+                    .clicked()
+                {
+                    app.redo();
+                }
+
+                if ui
+                    .add_enabled(app.undo_stack.can_undo(), egui::Button::new("Undo"))
+                    .on_hover_text("Undo last collection change (Ctrl+Z)")
+                    .clicked()
+                {
+                    app.undo();
+                }
+
                 let help_text = if constraints.is_mobile {
                     "Help"
                 } else {

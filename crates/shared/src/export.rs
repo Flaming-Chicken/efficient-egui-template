@@ -1,7 +1,7 @@
 //! Serialization and data interchange engines for JSON, CSV, and compressed BSON.
 
-use crate::models::{AppConfig, AppState, Item, ItemCollection, Priority};
-use serde::Deserialize;
+use crate::models::{AppConfig, AppState, CURRENT_SCHEMA_VERSION, Item, ItemCollection, Priority};
+use spodeian_persist::{StateMigrator, VersionedSnapshot};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -14,57 +14,85 @@ pub enum ExportError {
     InvalidPriority(String),
     #[error("Empty data provided")]
     EmptyData,
+    #[error("Export error: {0}")]
+    Spodeian(#[from] spodeian_export::ExportError),
 }
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum ImportedJsonData {
-    State(AppState),
-    Collection(ItemCollection),
+fn normalize_state_version(mut state: AppState) -> AppState {
+    if state.schema_version == 0 {
+        state.schema_version = CURRENT_SCHEMA_VERSION;
+    }
+    state
 }
 
 /// Serializes application state to formatted JSON.
 pub fn export_to_json(state: &AppState) -> Result<String, ExportError> {
-    serde_json::to_string_pretty(state).map_err(ExportError::Json)
+    spodeian_export::export_to_json(state).map_err(ExportError::Spodeian)
 }
 
 /// Deserializes application state from a JSON string.
-/// Transparently handles both full AppState payloads and standalone ItemCollection payloads.
+/// Transparently handles [`VersionedSnapshot<AppState>`], full [`AppState`] payloads,
+/// and standalone [`ItemCollection`] payloads, upgrading `schema_version == 0`.
 pub fn import_from_json(json_str: &str) -> Result<AppState, ExportError> {
     let trimmed = json_str.trim();
     if trimmed.is_empty() {
         return Err(ExportError::EmptyData);
     }
-    match serde_json::from_str::<ImportedJsonData>(trimmed) {
-        Ok(ImportedJsonData::State(state)) => Ok(state),
-        Ok(ImportedJsonData::Collection(col)) => Ok(AppState {
-            collection: col,
-            config: AppConfig::default(),
-        }),
-        Err(e) => Err(ExportError::Json(e)),
+
+    let value: serde_json::Value = serde_json::from_str(trimmed)?;
+    if let Some(obj) = value.as_object() {
+        if obj.contains_key("payload")
+            && obj.contains_key("schema_version")
+            && let Ok(snapshot) = serde_json::from_value::<VersionedSnapshot<AppState>>(value.clone())
+        {
+            return Ok(normalize_state_version(snapshot.payload));
+        }
+        if !obj.contains_key("collection")
+            && !obj.contains_key("config")
+            && obj.contains_key("items")
+            && let Ok(col) = serde_json::from_value::<ItemCollection>(value.clone())
+        {
+            return Ok(AppState {
+                schema_version: CURRENT_SCHEMA_VERSION,
+                collection: col,
+                config: AppConfig::default(),
+            });
+        }
     }
+
+    StateMigrator::deserialize_versioned_or_raw::<AppState>(trimmed)
+        .map(normalize_state_version)
+        .map_err(|e| ExportError::Csv(e.to_string()))
 }
 
-/// Serializes an item collection to RFC 4180-compliant CSV.
+/// Serializes an item collection to RFC 4180-compliant CSV via `spodeian_export`.
 pub fn export_to_csv(collection: &ItemCollection) -> Result<String, ExportError> {
-    let mut csv = String::from("id,title,description,priority,completed,created_at\n");
-    for item in &collection.items {
-        let escaped_title = spodeian_export::escape_csv_field(&item.title);
-        let escaped_desc = spodeian_export::escape_csv_field(&item.description);
-        csv.push_str(&format!(
-            "{},{},{},{},{},{}\n",
-            spodeian_export::escape_csv_field(&item.id),
-            escaped_title,
-            escaped_desc,
-            item.priority.label(),
-            item.completed,
-            item.created_at
-        ));
-    }
-    Ok(csv)
+    let headers = [
+        "id",
+        "title",
+        "description",
+        "priority",
+        "completed",
+        "created_at",
+    ];
+    let rows: Vec<Vec<String>> = collection
+        .items
+        .iter()
+        .map(|item| {
+            vec![
+                item.id.clone(),
+                item.title.clone(),
+                item.description.clone(),
+                item.priority.label().to_string(),
+                item.completed.to_string(),
+                item.created_at.to_string(),
+            ]
+        })
+        .collect();
+    Ok(spodeian_export::export_to_csv(&headers, &rows))
 }
 
-/// Deserializes an item collection from a CSV string.
+/// Deserializes an item collection from a CSV string using `spodeian_export::parse_csv_line`.
 pub fn import_from_csv(csv_str: &str) -> Result<ItemCollection, ExportError> {
     let trimmed = csv_str.trim();
     if trimmed.is_empty() {
@@ -72,9 +100,7 @@ pub fn import_from_csv(csv_str: &str) -> Result<ItemCollection, ExportError> {
     }
 
     let mut items = Vec::new();
-    let lines = trimmed.lines().enumerate();
-
-    for (idx, line) in lines {
+    for (idx, line) in trimmed.lines().enumerate() {
         let trimmed_line = line.trim();
         if trimmed_line.is_empty() {
             continue;
@@ -133,21 +159,29 @@ pub fn export_to_compressed_bson(state: &AppState) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("BSON serialization failed: {e}"))
 }
 
-/// Imports and restores an AppState from a compressed (or raw) BSON slice.
+/// Imports and restores an [`AppState`] from a compressed (or raw) BSON slice.
 pub fn import_from_compressed_bson(bytes: &[u8]) -> Result<AppState, String> {
     if bytes.is_empty() {
         return Err("BSON input is empty".to_string());
     }
     let bson_bytes =
         miniz_oxide::inflate::decompress_to_vec_zlib(bytes).unwrap_or_else(|_| bytes.to_vec());
-    if let Ok(state) = bson::from_slice::<AppState>(&bson_bytes) {
-        return Ok(state);
-    }
-    if let Ok(col) = bson::from_slice::<ItemCollection>(&bson_bytes) {
+
+    if let Ok(doc) = bson::from_slice::<bson::Document>(&bson_bytes)
+        && !doc.contains_key("collection")
+        && !doc.contains_key("config")
+        && doc.contains_key("items")
+        && let Ok(col) = bson::from_slice::<ItemCollection>(&bson_bytes)
+    {
         return Ok(AppState {
+            schema_version: CURRENT_SCHEMA_VERSION,
             collection: col,
             config: AppConfig::default(),
         });
+    }
+
+    if let Ok(state) = spodeian_export::import_from_compressed_bson::<AppState>(bytes) {
+        return Ok(normalize_state_version(state));
     }
     Err("BSON deserialization failed: incompatible payload".to_string())
 }

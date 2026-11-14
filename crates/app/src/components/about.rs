@@ -22,9 +22,12 @@ pub fn render_about_page(
                 );
                 ui.add_space(4.0);
                 ui.label(
-                    egui::RichText::new("Version 0.1.0 • Rust 2024 • egui 0.36")
-                        .small()
-                        .monospace(),
+                    egui::RichText::new(format!(
+                        "Version {} • Rust 2024 • egui 0.36",
+                        env!("CARGO_PKG_VERSION")
+                    ))
+                    .small()
+                    .monospace(),
                 );
             });
 
@@ -136,12 +139,24 @@ pub fn render_about_page(
                     .num_columns(2)
                     .spacing([16.0, 6.0])
                     .show(ui, |ui| {
+                        ui.label(egui::RichText::new("Ctrl+K / Cmd+K").monospace().strong());
+                        ui.label("Open the searchable Command Palette.");
+                        ui.end_row();
+
+                        ui.label(egui::RichText::new("Ctrl+Z / Ctrl+Y").monospace().strong());
+                        ui.label("Undo or redo item collection changes.");
+                        ui.end_row();
+
                         ui.label(egui::RichText::new("Enter").monospace().strong());
                         ui.label("Quickly add new task/item from the input form.");
                         ui.end_row();
 
                         ui.label(egui::RichText::new("Escape").monospace().strong());
                         ui.label("Close any active modal dialog or overlay.");
+                        ui.end_row();
+
+                        ui.label(egui::RichText::new("F1").monospace().strong());
+                        ui.label("Open Help, Accessibility & UI Scale settings.");
                         ui.end_row();
 
                         ui.label(egui::RichText::new("Data Import/Export").strong());

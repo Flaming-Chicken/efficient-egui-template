@@ -9,7 +9,7 @@ members = [
 
 # Shared metadata for all workspace packages
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Liam <spodeian@proton.me>"]
 edition = "2024"
 license = "PolyForm-Noncommercial-1.0.0"
@@ -39,15 +39,17 @@ miniz_oxide = "0.8"
 base64 = "0.22"
 ron = "0.12"
 criterion = "0.5"
+proptest = "1"
 wasm-bindgen-test = "0.3"
 winit = { version = "0.30", default-features = false }
 android-activity = { version = "0.6", default-features = false, features = ["native-activity"] }
-spodeian-cache = { git = "https://github.com/Spodeian/spodeian-core", tag = "v2.0.0", version = "^1.1.0" }
-spodeian-tokens = { git = "https://github.com/Spodeian/spodeian-core", tag = "v2.0.0", version = "^1.1.0" }
-spodeian-telemetry = { git = "https://github.com/Spodeian/spodeian-core", tag = "v2.0.0", version = "^1.1.0" }
-spodeian-export = { git = "https://github.com/Spodeian/spodeian-core", tag = "v2.0.0", version = "^2.0.0" }
-spodeian-web-utils = { git = "https://github.com/Spodeian/spodeian-core", tag = "v2.0.0", version = "^1.1.0" }
-spodeian-ui = { git = "https://github.com/Spodeian/spodeian-core", tag = "v2.0.0", version = "^1.0.0" }
+spodeian-cache = { path = "../../spodeian-core/crates/spodeian-cache" }
+spodeian-tokens = { path = "../../spodeian-core/crates/spodeian-tokens" }
+spodeian-telemetry = { path = "../../spodeian-core/crates/spodeian-telemetry" }
+spodeian-export = { path = "../../spodeian-core/crates/spodeian-export" }
+spodeian-web-utils = { path = "../../spodeian-core/crates/spodeian-web-utils" }
+spodeian-ui = { path = "../../spodeian-core/crates/spodeian-ui" }
+spodeian-persist = { path = "../../spodeian-core/crates/spodeian-persist" }
 
 [profile.release]
 opt-level = 3
