@@ -19,7 +19,10 @@ pub fn render_error_recovery_banner(app: &mut TemplateApp, ctx: &egui::Context) 
         .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_premultiplied(45, 18, 18, 245))
-                .stroke(egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(235, 80, 80)))
+                .stroke(egui::Stroke::new(
+                    1.0_f32,
+                    egui::Color32::from_rgb(235, 80, 80),
+                ))
                 .corner_radius(8)
                 .inner_margin(egui::Margin::symmetric(16, 10))
                 .show(ui, |ui| {

@@ -40,7 +40,12 @@ impl ExportFormat {
 pub fn default_template_commands() -> Vec<CommandEntry> {
     vec![
         CommandEntry::new("nav.dashboard", "Go to Dashboard", "Ctrl+1", "Navigation"),
-        CommandEntry::new("nav.about", "Go to About & Diagnostics", "Ctrl+2", "Navigation"),
+        CommandEntry::new(
+            "nav.about",
+            "Go to About & Diagnostics",
+            "Ctrl+2",
+            "Navigation",
+        ),
         CommandEntry::new("edit.undo", "Undo Last Collection Change", "Ctrl+Z", "Edit"),
         CommandEntry::new("edit.redo", "Redo Collection Change", "Ctrl+Y", "Edit"),
         CommandEntry::new(
@@ -63,11 +68,26 @@ pub fn default_template_commands() -> Vec<CommandEntry> {
         ),
         CommandEntry::new("data.export_json", "Export State as JSON", "Ctrl+E", "Data"),
         CommandEntry::new("data.export_csv", "Export Items as CSV", "", "Data"),
-        CommandEntry::new("data.export_bson", "Export Compressed BSON Backup", "", "Data"),
+        CommandEntry::new(
+            "data.export_bson",
+            "Export Compressed BSON Backup",
+            "",
+            "Data",
+        ),
         CommandEntry::new("data.import", "Open Import Dialog", "Ctrl+I", "Data"),
-        CommandEntry::new("system.storage", "Inspect Storage & Persistence", "", "System"),
+        CommandEntry::new(
+            "system.storage",
+            "Inspect Storage & Persistence",
+            "",
+            "System",
+        ),
         CommandEntry::new("system.telemetry", "Open System Telemetry", "", "System"),
-        CommandEntry::new("system.help", "Open Help & Accessibility Settings", "F1", "Help"),
+        CommandEntry::new(
+            "system.help",
+            "Open Help & Accessibility Settings",
+            "F1",
+            "Help",
+        ),
     ]
 }
 

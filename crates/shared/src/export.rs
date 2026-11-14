@@ -43,7 +43,8 @@ pub fn import_from_json(json_str: &str) -> Result<AppState, ExportError> {
     if let Some(obj) = value.as_object() {
         if obj.contains_key("payload")
             && obj.contains_key("schema_version")
-            && let Ok(snapshot) = serde_json::from_value::<VersionedSnapshot<AppState>>(value.clone())
+            && let Ok(snapshot) =
+                serde_json::from_value::<VersionedSnapshot<AppState>>(value.clone())
         {
             return Ok(normalize_state_version(snapshot.payload));
         }

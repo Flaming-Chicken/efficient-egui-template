@@ -157,9 +157,12 @@ fn test_versioned_envelope_and_legacy_schema_migration() {
             ..Default::default()
         },
     };
-    state
-        .collection
-        .add(Item::new("extra-1", "Migrated Item", "Check", Priority::Critical));
+    state.collection.add(Item::new(
+        "extra-1",
+        "Migrated Item",
+        "Check",
+        Priority::Critical,
+    ));
 
     let envelope_json =
         StateMigrator::serialize_versioned(&state, CURRENT_SCHEMA_VERSION, 1_774_900_000.0)
@@ -176,7 +179,12 @@ fn test_versioned_envelope_and_legacy_schema_migration() {
 
     // Standalone custom ItemCollection preserves exact items rather than falling back to defaults.
     let custom_col = ItemCollection {
-        items: vec![Item::new("only-one", "Only Item", "Custom", Priority::Medium)],
+        items: vec![Item::new(
+            "only-one",
+            "Only Item",
+            "Custom",
+            Priority::Medium,
+        )],
     };
     let custom_json = serde_json::to_string(&custom_col).unwrap();
     let imported_col = import_from_json(&custom_json).expect("Import custom collection failed");
