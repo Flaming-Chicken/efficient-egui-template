@@ -1,15 +1,10 @@
 [workspace]
 resolver = "3"
-members = [
-    "crates/app",
-    "crates/shared",
-    "crates/desktop",
-    "crates/web",
-]
+members = ["crates/*"]
 
 # Shared metadata for all workspace packages
 [workspace.package]
-version = "0.2.0"
+version = "0.2.2"
 authors = ["Liam <spodeian@proton.me>"]
 edition = "2024"
 license = "PolyForm-Noncommercial-1.0.0"
@@ -43,6 +38,7 @@ proptest = "1"
 wasm-bindgen-test = "0.3"
 winit = { version = "0.30", default-features = false }
 android-activity = { version = "0.6", default-features = false, features = ["native-activity"] }
+spodeian-parallel = { git = "https://github.com/Spodeian/spodeian-core", tag = "v3.0.0", version = "^1.0.0" }
 spodeian-cache = { git = "https://github.com/Spodeian/spodeian-core", tag = "v3.0.0" }
 spodeian-tokens = { git = "https://github.com/Spodeian/spodeian-core", tag = "v3.0.0" }
 spodeian-telemetry = { git = "https://github.com/Spodeian/spodeian-core", tag = "v3.0.0" }

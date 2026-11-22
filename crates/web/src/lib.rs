@@ -1,18 +1,25 @@
 //! Web entrypoint and WebRunner for the Serverless & Desktop Template.
+#![warn(missing_docs)]
+#![warn(clippy::unwrap_used)]
 
 #[cfg(target_arch = "wasm32")]
 use app::TemplateApp;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{JsCast, prelude::*};
 
+/// Initializes telemetry and mounts [`app::TemplateApp`] onto `#egui_canvas` in the browser.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
 pub fn main() {
     // Universal telemetry & logging initialization
     spodeian_telemetry::init_default();
 
+    let initial_hash = web_sys::window()
+        .and_then(|win| win.location().hash().ok())
+        .filter(|h| !h.is_empty());
+
     // Spawn the async eframe WebRunner natively
-    wasm_bindgen_futures::spawn_local(async {
+    wasm_bindgen_futures::spawn_local(async move {
         let document = match web_sys::window().and_then(|win| win.document()) {
             Some(doc) => doc,
             None => {
@@ -37,7 +44,16 @@ pub fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(TemplateApp::new(cc)))),
+                Box::new(move |cc| {
+                    let mut template_app = TemplateApp::new(cc);
+                    if let Some(ref hash) = initial_hash
+                        && hash.contains("state=")
+                        && let Err(e) = template_app.load_shared_url_hash(hash)
+                    {
+                        tracing::warn!("Ignoring invalid #state URL hash: {e}");
+                    }
+                    Ok(Box::new(template_app))
+                }),
             )
             .await;
     });

@@ -4,6 +4,7 @@ use crate::{ScreenConstraints, TemplateApp};
 use eframe::egui;
 use shared::{Item, Priority};
 
+/// Renders the completion progress summary card at the top of the dashboard.
 pub fn render_summary_cards(
     app: &mut TemplateApp,
     ui: &mut egui::Ui,
@@ -52,6 +53,7 @@ pub fn render_summary_cards(
         });
 }
 
+/// Renders the new item creation form with Enter-key submission support.
 pub fn render_new_item_form(
     app: &mut TemplateApp,
     ui: &mut egui::Ui,
@@ -179,6 +181,7 @@ pub fn render_new_item_form(
         });
 }
 
+/// Renders the searchable, filterable item list and completion/deletion actions.
 pub fn render_item_list(app: &mut TemplateApp, ui: &mut egui::Ui, constraints: &ScreenConstraints) {
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new("Items").heading());

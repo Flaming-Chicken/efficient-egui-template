@@ -5,6 +5,7 @@
 # Cargo Logs & Core Files
 Cargo.lock.log
 *.log
+lcov.info
 
 # Trunk Web & WASM Bundler Artifacts
 /dist/
@@ -13,6 +14,25 @@ Cargo.lock.log
 
 # Wrangler / Cloudflare Local State Caches
 .wrangler/
+
+# Binary Models, Audio, Columnar Datasets & Archives (Never commit to git)
+*.safetensors
+*.gguf
+*.onnx
+*.pt
+*.pth
+*.bin
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.parquet
+*.arrow
+*.feather
+*.db
+*.sqlite*
+*.bundle
+*.tar
 
 # Operating System Specific
 .DS_Store

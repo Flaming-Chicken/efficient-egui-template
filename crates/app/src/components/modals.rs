@@ -3,8 +3,50 @@
 use crate::{ExportFormat, TemplateApp, storage_manager::*};
 use eframe::egui;
 use shared::{
-    export_to_compressed_bson, import_from_compressed_bson, import_from_csv, import_from_json,
+    decode_shareable_url_hash, encode_shareable_url_hash, export_to_compressed_bson,
+    import_from_compressed_bson, import_from_csv, import_from_json,
 };
+
+/// Renders a foreground protection banner when viewing state imported from a shared `#state=` URL
+/// hash so local saved data is never accidentally overwritten.
+pub fn render_shared_link_banner(app: &mut TemplateApp, ctx: &egui::Context) {
+    if !app.is_viewing_shared_link {
+        return;
+    }
+
+    egui::Area::new(egui::Id::new("shared_link_banner_area"))
+        .order(egui::Order::Foreground)
+        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 46.0))
+        .show(ctx, |ui| {
+            egui::Frame::NONE
+                .fill(egui::Color32::from_rgba_premultiplied(20, 38, 60, 245))
+                .stroke(egui::Stroke::new(
+                    1.0_f32,
+                    egui::Color32::from_rgb(88, 166, 255),
+                ))
+                .corner_radius(8)
+                .inner_margin(egui::Margin::symmetric(16, 10))
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            egui::RichText::new(
+                                "🔗 Viewing a shared link — Your local saved data is untouched",
+                            )
+                            .strong()
+                            .color(egui::Color32::WHITE),
+                        );
+                        if ui.button("Save Locally").clicked() {
+                            app.accept_shared_state_as_local();
+                        }
+                        if app.saved_local_state_backup.is_some()
+                            && ui.button("Restore Local Data").clicked()
+                        {
+                            app.restore_local_state_from_shared();
+                        }
+                    });
+                });
+        });
+}
 
 /// Renders a recoverable error overlay banner whenever [`TemplateApp::run_recoverable`]
 /// captures a panic or fault payload.
@@ -15,7 +57,7 @@ pub fn render_error_recovery_banner(app: &mut TemplateApp, ctx: &egui::Context) 
 
     egui::Area::new(egui::Id::new("error_recovery_banner_area"))
         .order(egui::Order::Foreground)
-        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 48.0))
+        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 88.0))
         .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(egui::Color32::from_rgba_premultiplied(45, 18, 18, 245))
@@ -55,6 +97,7 @@ pub fn render_error_recovery_banner(app: &mut TemplateApp, ctx: &egui::Context) 
         });
 }
 
+/// Renders storage persistence and quota warning banners at the bottom of the viewport.
 pub fn render_warning_banners(app: &mut TemplateApp, ctx: &egui::Context) {
     let is_ephemeral = app.storage_diag.is_persisted == Some(false);
     let is_quota = app.storage_diag.quota_exceeded;
@@ -133,19 +176,20 @@ pub fn render_warning_banners(app: &mut TemplateApp, ctx: &egui::Context) {
     }
 }
 
+/// Renders active modal windows (Help & Accessibility, Reset Confirmation, Export, Import, and Storage).
 pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
     if app.show_help_dialog {
         let mut open = true;
-        let win_w = (ui.available_width() - 24.0).clamp(340.0, 600.0);
-        let win_h = (ui.available_height() - 32.0).clamp(440.0, 680.0);
+        let win_w = (ui.available_width() - 24.0).clamp(320.0, 620.0);
+        let win_h = (ui.available_height() - 32.0).clamp(380.0, 700.0);
 
         egui::Window::new("Help & Information")
             .open(&mut open)
             .resizable(true)
             .collapsible(true)
             .default_size(egui::vec2(win_w, win_h))
-            .min_width(320.0)
-            .min_height(380.0)
+            .min_width(300.0)
+            .min_height(320.0)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ui.ctx(), |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
@@ -165,7 +209,7 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
 
                     ui.heading("Serverless & Desktop Architecture");
                     ui.add_space(4.0);
-                    ui.label("This template demonstrates a production-grade, offline-first application architecture compiling to both WebAssembly (via eframe / Trunk / Cloudflare Pages) and Native Desktop (via eframe / Winit).");
+                    ui.label("This template demonstrates an offline-first application architecture compiling to both WebAssembly (via eframe / Trunk / Cloudflare Pages) and Native Desktop (via eframe / Winit).");
 
                     ui.add_space(8.0);
                     ui.separator();
@@ -182,9 +226,25 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                     ui.separator();
                     ui.add_space(6.0);
 
-                    ui.heading("Accessibility & Display Settings");
+                    ui.heading("Theme, Accessibility & Display Settings");
                     ui.add_space(4.0);
                     let mut config_changed = false;
+                    if ui
+                        .add(spodeian_ui::ThemePickerWidget::new(
+                            &mut app.state.config.theme,
+                        ))
+                        .changed()
+                    {
+                        config_changed = true;
+                    }
+                    ui.add_space(4.0);
+                    if spodeian_ui::render_accessibility_panel(
+                        ui,
+                        &mut app.state.config.accessibility,
+                    ) {
+                        config_changed = true;
+                    }
+                    ui.add_space(4.0);
                     if ui
                         .checkbox(
                             &mut app.state.config.dyslexia_friendly,
@@ -216,7 +276,7 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                     ui.heading("Local Privacy & Security");
                     ui.add_space(4.0);
                     ui.label(
-                        egui::RichText::new("100% Client-Side: No telemetry or server database calls.")
+                        egui::RichText::new("100% Client-Side: No external telemetry or server database calls.")
                             .color(egui::Color32::from_rgb(80, 160, 90))
                             .strong(),
                     );
@@ -242,6 +302,7 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                         app.state.reset_data();
                         app.show_reset_dialog = false;
                         app.persist_state();
+                        app.set_status_toast("Reset complete");
                     }
                     if ui.button("Cancel").clicked() {
                         app.show_reset_dialog = false;
@@ -252,15 +313,36 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
 
     if let Some(format) = app.show_export_dialog {
         let mut open = true;
+        let win_w = (ui.available_width() - 24.0).clamp(320.0, 620.0);
         egui::Window::new(format!("Export {}", format.label()))
             .open(&mut open)
-            .default_size(egui::vec2(540.0, 380.0))
+            .default_size(egui::vec2(win_w, 420.0))
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ui.ctx(), |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for candidate in ExportFormat::ALL {
+                        if ui
+                            .selectable_label(format == candidate, candidate.short_label())
+                            .clicked()
+                            && format != candidate
+                        {
+                            app.selected_export_format = candidate;
+                            app.open_export_dialog(candidate);
+                        }
+                    }
+                });
+                ui.separator();
+                ui.horizontal_wrapped(|ui| {
                     if ui.button("Copy to Clipboard").clicked() {
                         ui.ctx().copy_text(app.export_text_buffer.clone());
                         app.export_copied_notification = Some(ui.input(|i| i.time));
+                    }
+                    if ui.button("Copy Share Link (#state=...)").clicked()
+                        && let Ok(hash) = encode_shareable_url_hash(&app.state)
+                    {
+                        ui.ctx().copy_text(hash);
+                        app.export_copied_notification = Some(ui.input(|i| i.time));
+                        app.set_status_toast("Share link copied");
                     }
                     if let Some(t) = app.export_copied_notification
                         && ui.input(|i| i.time) - t < 3.0
@@ -297,6 +379,20 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                                     );
                                 }
                             }
+                            ExportFormat::Svg => {
+                                trigger_text_download(
+                                    "priority_chart.svg",
+                                    &app.export_text_buffer,
+                                    "image/svg+xml;charset=utf-8",
+                                );
+                            }
+                            ExportFormat::Html => {
+                                trigger_text_download(
+                                    "workspace_report.html",
+                                    &app.export_text_buffer,
+                                    "text/html;charset=utf-8",
+                                );
+                            }
                         }
                     }
                 });
@@ -321,13 +417,14 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
 
     if app.show_import_dialog {
         let mut open = true;
+        let win_w = (ui.available_width() - 24.0).clamp(320.0, 540.0);
         egui::Window::new("Import Data")
             .open(&mut open)
-            .default_size(egui::vec2(500.0, 360.0))
+            .default_size(egui::vec2(win_w, 380.0))
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ui.ctx(), |ui| {
                 ui.label(
-                    "Paste JSON, CSV or Base64 BSON data below to import into your collection:",
+                    "Paste JSON, CSV, Base64 BSON, or a #state=... share link below (or drag & drop a .json/.csv/.bson file):",
                 );
                 ui.add_space(8.0);
 
@@ -335,7 +432,7 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                     ui.add(
                         egui::TextEdit::multiline(&mut app.import_text_buffer)
                             .font(egui::TextStyle::Monospace)
-                            .hint_text("Paste JSON, CSV, or Base64 BSON content here...")
+                            .hint_text("Paste JSON, CSV, Base64 BSON, or #state=... here...")
                             .desired_width(f32::INFINITY)
                             .desired_rows(8),
                     );
@@ -347,6 +444,22 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
                         let input = app.import_text_buffer.trim();
                         if input.is_empty() {
                             app.import_result_message = Some(Err("Input is empty.".to_string()));
+                        } else if input.contains("#state=") || input.starts_with("state=") {
+                            match decode_shareable_url_hash(input) {
+                                Ok(state) => {
+                                    app.record_undo_snapshot();
+                                    let count = state.collection.total_count();
+                                    app.state = state;
+                                    app.import_result_message = Some(Ok(format!(
+                                        "Successfully imported {} items from share link!",
+                                        count
+                                    )));
+                                    app.persist_state();
+                                }
+                                Err(e) => {
+                                    app.import_result_message = Some(Err(e.to_string()));
+                                }
+                            }
                         } else if input.starts_with('{') {
                             match import_from_json(input) {
                                 Ok(state) => {
@@ -442,11 +555,13 @@ pub fn render_dialogs(app: &mut TemplateApp, ui: &mut egui::Ui) {
     }
 }
 
+/// Renders the storage diagnostics and backup management modal window.
 pub fn render_storage_modal(app: &mut TemplateApp, ui: &mut egui::Ui) {
     let mut open = true;
+    let win_w = (ui.available_width() - 24.0).clamp(320.0, 500.0);
     egui::Window::new("Storage & Data Management")
         .open(&mut open)
-        .default_size(egui::vec2(480.0, 380.0))
+        .default_size(egui::vec2(win_w, 380.0))
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ui.ctx(), |ui| {
             ui.heading("Storage Diagnostics");
@@ -517,7 +632,7 @@ pub fn render_storage_modal(app: &mut TemplateApp, ui: &mut egui::Ui) {
             ui.heading("Actions");
             ui.add_space(4.0);
 
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 if app.storage_diag.is_persisted != Some(true) {
                     if ui
                         .button("Request Persistent Storage")
@@ -540,7 +655,7 @@ pub fn render_storage_modal(app: &mut TemplateApp, ui: &mut egui::Ui) {
             });
 
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 if ui
                     .button("Export Compressed BSON Backup")
                     .on_hover_text("Download compact, offline state backup (.bson)")

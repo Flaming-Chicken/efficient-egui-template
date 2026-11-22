@@ -1,9 +1,11 @@
 // Service Worker for Serverless & Desktop Template
-// Strategy: Cache-First with Background Network Revalidation (Stale-While-Revalidate)
-const CACHE_NAME = 'serverless-desktop-template-cache-v20260912';
+// Strategy: Network-First for HTML navigations; Cache-First with Background Revalidation for hashed bundles.
+const BUILD_ID = '__BUILD_ID__';
+const CACHE_NAME = `serverless-desktop-template-cache-${BUILD_ID}`;
+const PRECACHE_URLS = /*__PRECACHE_URLS__*/ [];
 
-// Static assets to pre-cache on install
-const PRECACHE_ASSETS = [
+// Static shell assets always precached alongside build-stamped hashed WASM/JS bundles
+const BASE_PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
@@ -11,12 +13,17 @@ const PRECACHE_ASSETS = [
   '/favicon.ico'
 ];
 
+function isHostOrSubdomain(hostname, rootDomain) {
+  return hostname === rootDomain || hostname.endsWith(`.${rootDomain}`);
+}
+
 // 1. Pre-cache on install with error resilience and activate immediately
 self.addEventListener('install', (event) => {
+  const urls = Array.from(new Set([...BASE_PRECACHE_ASSETS, ...PRECACHE_URLS]));
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return Promise.allSettled(
-        PRECACHE_ASSETS.map((asset) =>
+        urls.map((asset) =>
           fetch(asset, { cache: 'no-cache' }).then((response) => {
             if (response && response.ok) {
               return cache.put(asset, response);
@@ -39,7 +46,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 3. Fetch router: Cache-First with Background Network Revalidation
+// 3. Fetch router: Network-First for HTML documents; Cache-First with Background Revalidation for assets
 self.addEventListener('fetch', (event) => {
   // Only handle local same-origin GET requests
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
@@ -48,8 +55,12 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Bypass third-party analytics, beacon, or challenge endpoints
-  if (url.hostname.includes('cloudflareinsights.com') || url.hostname.includes('google-analytics.com') || url.pathname.includes('/cdn-cgi/')) {
+  // Bypass third-party analytics, beacon, or challenge endpoints using strict domain boundary matching
+  if (
+    isHostOrSubdomain(url.hostname, 'cloudflareinsights.com')
+    || isHostOrSubdomain(url.hostname, 'google-analytics.com')
+    || url.pathname.startsWith('/cdn-cgi/')
+  ) {
     return;
   }
 
@@ -63,10 +74,25 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
-      // 1. Check cache first
+      if (isNavigation) {
+        try {
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.status === 200) {
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch (_) {
+          const cached = await cache.match(event.request) || await cache.match('/index.html') || await cache.match('/');
+          if (cached) {
+            return cached;
+          }
+        }
+      }
+
+      // 1. Check cache first for hashed assets
       const cachedResponse = await cache.match(event.request);
 
-      // 2. Background network fetch & cache update (double-check network for updated files)
+      // 2. Background network fetch & cache update
       const networkFetch = fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           cache.put(event.request, networkResponse.clone());
@@ -75,23 +101,13 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => null);
 
       if (cachedResponse) {
-        // Cache hit: serve cached response immediately, and revalidate in background
         event.waitUntil(networkFetch);
         return cachedResponse;
       }
 
-      // Cache miss: wait for network response
       const networkResponse = await networkFetch;
       if (networkResponse) {
         return networkResponse;
-      }
-
-      // Offline fallback on cache miss
-      if (isNavigation) {
-        const fallback = await cache.match('/index.html') || await cache.match('/');
-        if (fallback) {
-          return fallback;
-        }
       }
 
       return new Response('Offline: Network unavailable', {

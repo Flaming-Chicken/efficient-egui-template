@@ -144,6 +144,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Install Linux GUI dependencies
         run: |
@@ -151,8 +152,33 @@ jobs:
           sudo apt-get install -y libxkbcommon-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
       - name: Check Formatting
         run: cargo fmt --all -- --check
-      - name: Clippy Linter
+      - name: Reject Tracked Large Binaries (> 2 MB)
+        shell: python
+        run: |
+          import os, subprocess, sys
+          limit = 2 * 1024 * 1024
+          files = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          oversized = []
+          for f in files:
+              if not f:
+                  continue
+              path = f.decode("utf-8", errors="replace")
+              if os.path.isfile(path) and os.path.getsize(path) > limit:
+                  oversized.append((path, os.path.getsize(path)))
+          if oversized:
+              for path, size in oversized:
+                  print(f"::error::Tracked file '{path}' exceeds 2 MB ({size} bytes).")
+              sys.exit(1)
+      - name: Clippy Linter (Native)
         run: cargo clippy --workspace --exclude desktop --all-targets --all-features -- -D warnings
+      - name: Clippy Linter (WASM)
+        run: cargo clippy -p app -p shared -p web --target wasm32-unknown-unknown -- -D warnings
+      - name: Check Rustdoc & Examples / Benches
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: |
+          cargo doc --no-deps --workspace --exclude desktop
+          cargo check -p shared --examples --benches
 
   test-native:
     name: Native Tests & Coverage
@@ -248,4 +274,19 @@ jobs:
 
       - name: Check iOS Simulator Target
         run: cargo check -p app --target aarch64-apple-ios-sim
+
+  template-scaffold-check:
+    name: Verify Web-Only Scaffold (No Desktop)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Simulate cargo-generate with include_desktop=false
+        run: |
+          rm -rf crates/desktop
+          cargo check --workspace --target wasm32-unknown-unknown
+          cargo test -p shared
 

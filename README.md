@@ -9,7 +9,7 @@
 
 A production-ready, modular Rust & [`egui 0.36`](https://github.com/emilk/egui) / [`eframe 0.36`](https://docs.rs/eframe) template designed for high-performance **Serverless Web (WASM / Cloudflare Pages / PWA via Trunk)** and **Native Desktop (Windows, macOS, Linux via Winit)** applications.
 
-Featuring a complete example application with a **responsive top bar**, **persistent multi-page routing** (Dashboard and About views), **interactive data management**, and a **status footer**.
+Featuring a complete example application with a **collapsible top bar** and **Zen Mode**, **persistent multi-page routing** (`Dashboard`, `Analytics`, and `About` views), **`spodeian-parallel` (Rayon + WASM) & WebGPU WGSL compute readiness**, **interactive data management & SVG/HTML/share-link interchange**, and a **status footer**. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for deep technical details.
 
 ---
 
@@ -73,11 +73,12 @@ graph TD
 ## ✨ Key Features
 
 - **⚡ Dual-Target Desktop & Serverless Web**: Compile identical UI logic to desktop native executables (Windows, macOS, Linux) or static client-side WASM bundles for Cloudflare Pages and GitHub Pages.
-- **🧭 Multi-Page Layout**:
-  - **Top Navigation Bar**: Global branding, view switcher (`Dashboard` & `About`), visual theme cycler, and action modals.
-  - **Dashboard Page**: Interactive item collection with real-time statistics, search & priority filtering, and instant creation.
-  - **About Page**: Architectural overview, live runtime diagnostics, active storage tier, and keyboard shortcuts guide.
-  - **Bottom Status Footer**: Live storage tier indicator (`LocalStorage` vs `IndexedDB`), quick page navigation links, and licensing notice.
+- **🧭 Multi-Page Layout & Focus Modes**:
+  - **Collapsible Navigation Bar**: Global branding, view switcher (`Dashboard`, `Analytics`, & `About`), visual theme picker, `Tools` overflow menu (Undo/Redo, Export/Import, Telemetry/Logs, Storage, Zen Mode), and inline status toasts.
+  - **Dashboard Page**: Interactive item collection with real-time statistics, search & priority filtering, instant creation, and drag-and-drop `.json` / `.csv` / `.bson` file import.
+  - **Analytics Page**: KPI `PerformanceMetricCard`s, colorblind-safe priority breakdown chart, and interactive 2D pan/zoom parametric signal explorer (`ParametricPreviewConfig`) with `.svg` and printable `.html` exports.
+  - **About Page**: Architectural overview, embedded `ThemePickerWidget` & `AccessibilityPreferences` panel (`ColorblindMode`, reduced motion, large touch targets, UI scaling, dyslexia-friendly spacing), live runtime diagnostics, and keyboard shortcuts guide (`F11` Zen Mode, `Ctrl+K` Command Palette, `Ctrl+Shift+L` Share Link).
+  - **Shared-Link Banner & Bottom Status Footer**: Non-destructive preview/restore banner for `#state=` shared URLs, live storage tier indicator (`LocalStorage` vs `IndexedDB`), quick page navigation links, and licensing notice.
 - **💾 Robust Multi-Tier State Persistence & Memory Protection**:
   - **In-Memory Tier (RAM)**: Native Rust struct representation for sub-microsecond latency, 0-allocation query paths, and 60-120 FPS rendering. Includes bounded capacity (`MEMORY_WORKING_SET_LIMIT` = 100 items) to prevent browser tab and process memory exhaustion (OOM).
   - **Tier 1 (Fast Sync)**: Synchronous browser `localStorage` under dedicated storage key `serverless_template_app_state` for fast reloads (< 16 KB).
@@ -86,11 +87,11 @@ graph TD
   - **Active State Persistence**: Dispatches immediate saves on user interactions (adds, toggles, deletions, resets, imports, theme changes) in addition to window close / `beforeunload` events.
   - **Storage Diagnostics Modal**: Live inspection of memory item count, capacity limits, active storage tier, and persistence status (persistent vs. ephemeral) with one-click permission requests (`StorageManager.persist()`).
 - **📱 Responsive & Touch-Friendly UI**: Layout automatically adapts across widescreen desktop monitors, tablets, and constrained mobile portrait viewports with adaptive element sizing and soft-wrap line calculations.
-- **🎨 Theme Engine**: Instant toggle between Charcoal Dark Mode, Warm Light Mode, and High Contrast Modes with persistent preference storage.
-- **⌨️ Intuitive Keyboard Support**: Press `Enter` to submit new items instantly and `Escape` to close any open modal dialog.
-- **📦 Data Interchange & File Downloads**:
-  - Export and import formatted **JSON**, RFC 4180-compliant **CSV**, and compact **Compressed BSON** (Zlib-compressed binary).
-  - Built-in copy-to-clipboard feedback toast and direct browser file download triggers (`trigger_text_download`, `trigger_binary_download`).
+- **🎨 Theme & Accessibility Engine**: Instant toggle via `ThemePickerWidget` between Charcoal Dark, Warm Light, High Contrast Dark, and High Contrast Light modes alongside `AccessibilityPreferences` (`ColorblindMode`, reduced motion, large touch targets, dyslexia-friendly spacing, `80%`–`150%` scaling) and `ReactiveFramePacer`.
+- **⌨️ Intuitive Keyboard Support**: Press `Enter` to submit items, `Ctrl+K` for Command Palette, `Ctrl+Z` / `Ctrl+Y` for Undo/Redo, `F11` for Zen Mode, `Ctrl+Shift+L` to copy a shareable `#state=` link, and `Escape` to close modals.
+- **📦 Data Interchange, Drag-and-Drop & File Downloads**:
+  - Export and import formatted **JSON**, RFC 4180-compliant **CSV**, compact **Compressed BSON** (Zlib-compressed binary), self-contained **SVG** charts, printable **HTML** reports, and compressed `#state=<base64url>` shareable URL hashes.
+  - Built-in drag-and-drop file import (`.json`, `.csv`, `.bson`), clipboard feedback toast, and direct browser file download triggers (`trigger_text_download`, `trigger_binary_download`).
 - **📶 Offline Progressive Web App (PWA)**:
   - Bundled local offline icons (192x192 and 512x512 maskable PNGs) meeting Lighthouse PWA installability requirements.
   - Hybrid service worker caching strategy (**Network-First** for `index.html` to guarantee atomic releases; **Cache-First** for immutable, content-hashed `.wasm`, `.js`, and `.css` assets) with offline fallback.
@@ -197,24 +198,37 @@ The compiled release executable will be located in `target/release/`.
 1. **Rename Workspace & Metadata**: Update `name`, `version`, `authors`, and `repository` in [`Cargo.toml`](Cargo.toml) and subcrate manifests.
 2. **Define Domain Data**: Replace `Item` and `ItemCollection` in [`crates/shared/src/models.rs`](crates/shared/src/models.rs) with your application's domain models.
 3. **Build Views & Components**: Add or update UI views in [`crates/app/src/components/`](crates/app/src/components/):
-   - [`components/navbar.rs`](crates/app/src/components/navbar.rs): Header bar, navigation tabs, and global tools.
+   - [`components/navbar.rs`](crates/app/src/components/navbar.rs): Collapsible header bar, navigation tabs, `Tools` overflow menu, and inline status toast.
    - [`components/item_list.rs`](crates/app/src/components/item_list.rs): Main content layout, input forms, and data cards.
-   - [`components/about.rs`](crates/app/src/components/about.rs): About page, architecture details, and diagnostics.
-   - [`components/modals.rs`](crates/app/src/components/modals.rs): Dialogs, import/export dialogs, and diagnostic panels.
+   - [`components/analytics.rs`](crates/app/src/components/analytics.rs): KPI metrics, priority breakdown chart, and interactive 2D pan/zoom parametric signal explorer.
+   - [`components/about.rs`](crates/app/src/components/about.rs): About page, `ThemePickerWidget`, `AccessibilityPreferences` controls, architecture details, and shortcuts.
+   - [`components/modals.rs`](crates/app/src/components/modals.rs): Dialogs, multi-format import/export dialogs, and storage panels.
+   - [`components/telemetry_viewer.rs`](crates/app/src/components/telemetry_viewer.rs): Telemetry KPIs and embedded `LogConsoleWidget`.
 4. **Update PWA & SEO Tags**: Customize `title`, meta description, OpenGraph tags, and icons in [`crates/web/index.html`](crates/web/index.html) and [`crates/web/manifest.json`](crates/web/manifest.json).
 
 ---
 
-## ⚖️ Template Comparison
+## ⚖️ Spodeian Template Family & Starter Comparison
+
+### Choosing Across the Three Spodeian Templates
+
+| Template | Best For | Architecture | Compute, GPU & Native Target |
+|---|---|---|---|
+| **`efficient-egui-template`** *(this repo)* | Custom 2D/3D viewports, CAD/science/audio GUIs, single-binary apps | 4 crates (`shared`, `app`, `desktop`, `web`) + `spodeian-ui` | `wgpu` (default) / `glow`, native `winit` + `mimalloc`, `spodeian-parallel` (Rayon/WASM), WGSL shader ready |
+| **`efficient-leptos-template`** | Hybrid websites + native desktop/mobile apps sharing one DOM UI | 5 crates (`shared`, `app`, `web`, `ssg`, `desktop`) | Static SSR + WASM `hydrate` + Tauri v2 `csr` + native Rayon IPC commands + WGSL shader ready |
+| **`efficient-leptos-edge-template`** | Pure zero-backend edge websites, SEO content, PWAs | 4 crates (`shared`, `app`, `web`, `ssg`) — zero desktop deps | Static SSR + WASM `hydrate` only, JSON-LD, `sitemap.xml`, `_redirects`, Rayon SSR / SIMD128 WASM |
+
+### vs. Generic `eframe` Starters
 
 | Capability | `efficient-egui-template` | `emilk/eframe_template` | Bare `eframe` App |
 |---|---|---|---|
 | **Crate Architecture** | Modular 4-crate workspace (`shared`, `app`, `desktop`, `web`) + `spodeian-core` v3.0 primitives | Single crate (`src/lib.rs`, `src/app.rs`, `src/main.rs`) | Single binary crate |
+| **Compute & Rendering (`rayon` / `wgpu`)** | `spodeian-parallel` (Rayon desktop / SIMD128 WASM), `wgpu` (default) + `glow` fallback (`active_renderer_label()`), bundled WGSL shader | Basic `eframe` loop | Manual implementation |
 | **Command Palette & Undo/Redo** | Built-in `CommandPaletteWidget`, shortcut conflict detector (`detect_shortcut_conflicts`), & `UndoStack` (`spodeian-ui`) | Manual implementation | Manual implementation |
 | **Persistence & Migration** | Versioned `AppState` envelopes (`schema_version`), JSON/Compressed BSON/CSV (`spodeian-export`), multi-tier fallback (`spodeian-persist`) | Basic `eframe::get_value` / `set_value` | Manual implementation |
 | **PWA & Cloudflare Pages** | Included `manifest.json`, cache-versioned `sw.js` (`spodeian-web-utils`), `_headers` | Minimal service worker | None |
 | **Accessibility & Recovery** | Dark / Light / High-Contrast themes (`spodeian-tokens`), dyslexia-friendly mode, recoverable error/panic boundary | Default egui style | Default egui style |
-| **Testing & Scaffolding** | 27 host unit/integration/`proptest` suites + Criterion benches + `cargo-generate.toml` + `wasm32` browser tests | Minimal starter tests | None |
+| **Testing & Scaffolding** | 34 host unit/integration/`proptest` suites + Criterion benches + runnable examples + `cargo-generate.toml` + `wasm32` browser tests | Minimal starter tests | None |
 
 ---
 
@@ -231,12 +245,12 @@ When rebasing an existing project onto `0.2.0` (see [`CHANGELOG.md`](./CHANGELOG
 
 ## 🧪 Testing & Quality Assurance
 
-Verified host test baseline (`cargo test --workspace`): **27 passed, 0 failed** (`app`: 11 including 3 `proptest` suites, `shared`: 14 including 3 `proptest` suites, `desktop`: 1, `web`: 1 host smoke test; `wasm_tests.rs` targets `wasm32` browsers; `cargo check -p shared --benches` and desktop + `wasm32` `clippy -D warnings` verified).
+Verified host test baseline (`cargo test --workspace`): **34 passed, 0 failed** (`app`: 14 including 3 `proptest` suites, `shared`: 18 including 4 `proptest` suites + `spodeian-parallel`/WGSL parity, `desktop`: 1, `web`: 1 host smoke test; `wasm_tests.rs` targets `wasm32` browsers; `cargo run -p shared --example state_interchange_and_report`, `cargo check -p shared --benches`, `RUSTDOCFLAGS="-D warnings" cargo doc`, and native + `wasm32` `clippy -D warnings` verified).
 
 | Test Suite | Location | Verified Host Tests | Purpose |
 |---|---|---|---|
-| **App Tests** | `crates/app/tests/app_tests.rs` | 11 passed | UI initialization, command palette & undo/redo `proptest` invariants, shortcut conflict detection, panic recovery, multi-tier JSON/RON persistence |
-| **Shared Model Tests** | `crates/shared/tests/shared_tests.rs` | 14 passed | Collection logic, JSON/CSV/BSON roundtrips, `schema_version` migration, page routing, `proptest` invariants |
+| **App Tests** | `crates/app/tests/app_tests.rs` | 14 passed | UI initialization, command palette & undo/redo `proptest` invariants, Zen Mode & shared-link hash restore, dropped file import, SVG/HTML/share exports, shortcut conflict detection, panic recovery |
+| **Shared Model Tests** | `crates/shared/tests/shared_tests.rs` | 18 passed | Collection logic, Analytics routing, `spodeian-parallel` sweeps & WGSL parity, SVG/HTML/shareable `#state=` exports, JSON/CSV/BSON roundtrips, `schema_version` migration, `proptest` invariants |
 | **Desktop Smoke** | `crates/desktop/tests/smoke_tests.rs` | 1 passed | Desktop native options and viewport validation |
 | **Web Smoke** | `crates/web/tests/smoke_tests.rs` | 1 passed | WebRunner app construction and wasm compatibility |
 | **WASM Browser Tests** | `crates/web/tests/wasm_tests.rs` | `wasm32` target | Headless Chrome/Firefox DOM and localStorage persistence tests |

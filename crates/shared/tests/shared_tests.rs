@@ -1,8 +1,11 @@
 use proptest::prelude::*;
 use shared::{
-    AppConfig, AppPage, AppState, CURRENT_SCHEMA_VERSION, Item, ItemCollection, Priority,
-    ThemeMode, export_to_compressed_bson, export_to_csv, export_to_json,
-    import_from_compressed_bson, import_from_csv, import_from_json,
+    AppConfig, AppPage, AppState, CURRENT_SCHEMA_VERSION, ComputeRuntimeSummary, Item,
+    ItemCollection, PARAMETRIC_HARMONIC_WGSL_SHADER, ParametricPreviewConfig, Priority,
+    SHARE_HASH_PREFIX, ThemeMode, decode_shareable_url_hash, encode_shareable_url_hash,
+    escape_html, export_to_compressed_bson, export_to_csv, export_to_json,
+    export_to_printable_html, export_to_svg, import_from_compressed_bson, import_from_csv,
+    import_from_json,
 };
 use spodeian_persist::StateMigrator;
 
@@ -136,6 +139,13 @@ fn test_app_page_routing() {
     let mut state = AppState::new();
     assert_eq!(state.config.active_page, AppPage::Dashboard);
     assert_eq!(state.config.active_page.label(), "Dashboard");
+    assert_eq!(AppPage::ALL.len(), 3);
+    for page in AppPage::ALL {
+        assert!(!page.description().is_empty());
+    }
+
+    state.config.active_page = AppPage::Analytics;
+    assert_eq!(state.config.active_page.label(), "Analytics");
 
     state.config.active_page = AppPage::About;
     assert_eq!(state.config.active_page.label(), "About");
@@ -143,6 +153,56 @@ fn test_app_page_routing() {
     let serialized = serde_json::to_string(&state).expect("Serialization failed");
     let deserialized: AppState = serde_json::from_str(&serialized).expect("Deserialization failed");
     assert_eq!(deserialized.config.active_page, AppPage::About);
+}
+
+#[test]
+fn test_svg_html_and_shareable_url_hash_exports() {
+    let mut state = AppState::new();
+    state.collection.add(Item::new(
+        "xss-1",
+        "<script>alert('xss')</script>",
+        "5 > 3 & 2 < 4 \"quoted\"",
+        Priority::Critical,
+    ));
+
+    let svg = export_to_svg(&state);
+    assert!(svg.starts_with("<svg "));
+    assert!(svg.contains("Priority Breakdown (5 items)"));
+    assert!(svg.contains("Critical"));
+
+    let html = export_to_printable_html(&state);
+    assert!(html.contains("<!DOCTYPE html>"));
+    assert!(html.contains("Content-Security-Policy"));
+    assert!(!html.contains("<script>alert('xss')</script>"));
+    assert!(html.contains("&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;"));
+    assert!(html.contains("5 &gt; 3 &amp; 2 &lt; 4 &quot;quoted&quot;"));
+
+    let hash = encode_shareable_url_hash(&state).expect("Encode share hash failed");
+    assert!(hash.starts_with(SHARE_HASH_PREFIX));
+    let decoded = decode_shareable_url_hash(&hash).expect("Decode share hash failed");
+    assert_eq!(decoded, state);
+
+    let full_url = format!("https://example.spodeian.trade/{hash}");
+    let decoded_url = decode_shareable_url_hash(&full_url).expect("Decode full URL failed");
+    assert_eq!(decoded_url, state);
+}
+
+#[test]
+fn test_parametric_preview_samples_are_finite_and_bounded() {
+    let empty = ParametricPreviewConfig::default().sample_points(0);
+    assert!(empty.is_empty());
+
+    let cfg = ParametricPreviewConfig {
+        frequency_hz: f32::NAN,
+        damping: -4.0,
+        harmonic_ratio: 5.0,
+    };
+    let pts = cfg.sample_points(64);
+    assert_eq!(pts.len(), 64);
+    assert!(
+        pts.iter()
+            .all(|(t, y)| t.is_finite() && (0.0..=1.0).contains(t) && y.is_finite())
+    );
 }
 
 #[test]
@@ -246,6 +306,7 @@ proptest! {
                 search_query: String::new(),
                 dyslexia_friendly,
                 ui_scale_percent,
+                ..Default::default()
             },
         };
 
@@ -261,6 +322,17 @@ proptest! {
         let bson_bytes = export_to_compressed_bson(&state).expect("BSON export failed");
         let from_bson = import_from_compressed_bson(&bson_bytes).expect("BSON import failed");
         prop_assert_eq!(&from_bson, &state);
+
+        let share_hash = encode_shareable_url_hash(&state).expect("Share hash encode failed");
+        let from_hash = decode_shareable_url_hash(&share_hash).expect("Share hash decode failed");
+        prop_assert_eq!(&from_hash, &state);
+    }
+
+    #[test]
+    fn prop_escape_html_neutralizes_raw_markup_delimiters(raw in ".*") {
+        let escaped = escape_html(&raw);
+        prop_assert!(!escaped.contains('<'));
+        prop_assert!(!escaped.contains('>'));
     }
 
     #[test]
@@ -312,4 +384,25 @@ proptest! {
         let cycled = theme.next().next().next().next();
         prop_assert_eq!(cycled, theme);
     }
+}
+
+#[test]
+fn test_batch_harmonic_sweep_and_wgsl_parity() {
+    let cfg = ParametricPreviewConfig::default();
+    let curves = cfg.batch_harmonic_sweep(&[0.5, 1.0, 2.0], 64);
+    assert_eq!(curves.len(), 3);
+    assert!(curves.iter().all(|c| c.len() == 64));
+
+    let cpu_ref = cfg.evaluate_harmonic_wgsl_cpu_reference(64);
+    assert_eq!(cpu_ref.len(), 64);
+    for (idx, (_, y)) in curves[1].iter().enumerate() {
+        assert!((y - cpu_ref[idx]).abs() < 1e-6);
+    }
+
+    assert!(PARAMETRIC_HARMONIC_WGSL_SHADER.contains("@compute @workgroup_size(64)"));
+    assert!(PARAMETRIC_HARMONIC_WGSL_SHADER.contains("fn main("));
+
+    let summary = ComputeRuntimeSummary::current();
+    assert!(summary.parallel_threads >= 1);
+    assert!(summary.wgsl_shader_ready);
 }

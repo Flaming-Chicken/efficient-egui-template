@@ -182,7 +182,109 @@ fn test_command_palette_execution_and_undo_redo_workflow() {
     assert!(app.execute_command("edit.redo"));
     assert_eq!(app.state.collection.total_count(), base_count + 1);
 
+    assert!(app.execute_command("nav.analytics"));
+    assert_eq!(app.state.config.active_page, AppPage::Analytics);
+
+    assert!(!app.state.config.zen_mode);
+    assert!(app.execute_command("view.zen_mode"));
+    assert!(app.state.config.zen_mode);
+    assert!(app.execute_command("view.zen_mode"));
+    assert!(!app.state.config.zen_mode);
+
     assert!(!app.execute_command("nonexistent.command"));
+}
+
+#[test]
+fn test_shared_url_hash_protection_and_restore_workflow() {
+    let mut app = TemplateApp::default();
+    let local_count = app.state.collection.total_count();
+
+    let mut remote_state = AppState::default();
+    remote_state.collection.reset();
+    remote_state.collection.add(Item::new(
+        "shared-1",
+        "Shared Only Item",
+        "From URL hash",
+        Priority::Critical,
+    ));
+    let hash = shared::encode_shareable_url_hash(&remote_state).expect("encode share hash");
+
+    app.load_shared_url_hash(&hash)
+        .expect("load shared hash should succeed");
+    assert!(app.is_viewing_shared_link);
+    assert_eq!(app.state.collection.total_count(), 1);
+    assert_eq!(app.state.collection.items[0].id, "shared-1");
+
+    // Restoring local state discards the preview without touching local data.
+    app.restore_local_state_from_shared();
+    assert!(!app.is_viewing_shared_link);
+    assert_eq!(app.state.collection.total_count(), local_count);
+
+    // Accepting a shared state promotes it to local state.
+    app.load_shared_url_hash(&hash)
+        .expect("reload shared hash should succeed");
+    app.accept_shared_state_as_local();
+    assert!(!app.is_viewing_shared_link);
+    assert_eq!(app.state.collection.total_count(), 1);
+}
+
+#[test]
+fn test_dropped_file_import_json_csv_and_bson() {
+    let mut app = TemplateApp::default();
+
+    let mut custom = AppState::default();
+    custom.collection.reset();
+    custom.collection.add(Item::new(
+        "drop-1",
+        "Dropped Task",
+        "Via drag and drop",
+        Priority::High,
+    ));
+
+    let json = shared::export_to_json(&custom).expect("json");
+    let imported_json = app
+        .import_dropped_bytes("backup.json", json.as_bytes())
+        .expect("drop json");
+    assert_eq!(imported_json, 1);
+    assert_eq!(app.state.collection.items[0].id, "drop-1");
+
+    let mut csv_col = shared::ItemCollection::new();
+    csv_col.add(Item::new("csv-1", "CSV 1", "Desc 1", Priority::Low));
+    csv_col.add(Item::new("csv-2", "CSV 2", "Desc 2", Priority::Medium));
+    let csv = shared::export_to_csv(&csv_col).expect("csv");
+    let imported_csv = app
+        .import_dropped_bytes("tasks.csv", csv.as_bytes())
+        .expect("drop csv");
+    assert_eq!(imported_csv, 2);
+    assert_eq!(app.state.collection.total_count(), 2);
+
+    let bson = shared::export_to_compressed_bson(&custom).expect("bson");
+    let imported_bson = app
+        .import_dropped_bytes("state.bson", &bson)
+        .expect("drop bson");
+    assert_eq!(imported_bson, 1);
+    assert_eq!(app.state.collection.items[0].id, "drop-1");
+}
+
+#[test]
+fn test_svg_html_and_share_link_export_commands() {
+    let mut app = TemplateApp::default();
+
+    app.open_export_dialog(app::ExportFormat::Svg);
+    assert_eq!(app.show_export_dialog, Some(app::ExportFormat::Svg));
+    assert!(app.export_text_buffer.starts_with("<svg "));
+
+    app.open_export_dialog(app::ExportFormat::Html);
+    assert_eq!(app.show_export_dialog, Some(app::ExportFormat::Html));
+    assert!(app.export_text_buffer.contains("<!DOCTYPE html>"));
+    assert!(app.export_text_buffer.contains("<svg "));
+
+    assert!(app.execute_command("data.copy_share_link"));
+    let copied = app
+        .last_copied_share_hash
+        .as_deref()
+        .expect("share hash captured");
+    assert!(copied.starts_with(shared::SHARE_HASH_PREFIX));
 }
 
 #[test]

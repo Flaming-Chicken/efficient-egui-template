@@ -143,10 +143,34 @@ fi
 
 # 6. Deployment Cache Invalidation & Version Stamping
 BUILD_ID=$(git rev-parse --short HEAD 2>/dev/null || date +%s)
-echo "=== Stamping Deployment Cache Invalidation with BUILD_ID: $BUILD_ID ==="
+echo "=== Stamping Deployment Cache Invalidation & Precache Manifest with BUILD_ID: $BUILD_ID ==="
 if [ -f "$DIST_DIR/sw.js" ]; then
-    sed -i "s/CACHE_NAME = '.*'/CACHE_NAME = 'serverless-desktop-template-cache-${BUILD_ID}'/g" "$DIST_DIR/sw.js" 2>/dev/null || true
-    sed -i "s/?v=[a-zA-Z0-9_-]*/?v=${BUILD_ID}/g" "$DIST_DIR/sw.js" 2>/dev/null || true
+    if command -v python3 &> /dev/null; then
+        python3 -c '
+import os, sys, json
+
+dist_dir = sys.argv[1]
+build_id = sys.argv[2]
+sw_path = os.path.join(dist_dir, "sw.js")
+skip = {"sw.js", "_headers", "_redirects"}
+urls = []
+for root, _, files in os.walk(dist_dir):
+    for name in sorted(files):
+        if name in skip or name.endswith((".gz", ".br", ".map")):
+            continue
+        rel = os.path.relpath(os.path.join(root, name), dist_dir).replace(os.sep, "/")
+        urls.append("/" + rel)
+with open(sw_path, "r", encoding="utf-8") as f:
+    text = f.read()
+text = text.replace("\x27__BUILD_ID__\x27", f"\x27{build_id}\x27")
+text = text.replace("/*__PRECACHE_URLS__*/ []", json.dumps(sorted(urls)))
+with open(sw_path, "w", encoding="utf-8") as f:
+    f.write(text)
+print(f"  Stamped sw.js with {len(urls)} precache entries")
+' "$DIST_DIR" "$BUILD_ID"
+    else
+        sed -i "s/'__BUILD_ID__'/'${BUILD_ID}'/g" "$DIST_DIR/sw.js" 2>/dev/null || true
+    fi
 fi
 if [ -f "$DIST_DIR/index.html" ]; then
     sed -i "s/?v=[a-zA-Z0-9_-]*/?v=${BUILD_ID}/g" "$DIST_DIR/index.html" 2>/dev/null || true

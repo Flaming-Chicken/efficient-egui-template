@@ -3,6 +3,7 @@
 use crate::{ScreenConstraints, TemplateApp};
 use eframe::egui;
 
+/// Renders the About, architecture, diagnostics, and keyboard shortcuts page.
 pub fn render_about_page(
     app: &mut TemplateApp,
     ui: &mut egui::Ui,
@@ -119,6 +120,15 @@ pub fn render_about_page(
                         let size = ui.available_size();
                         ui.label(format!("{} (~{}x{})", mode, size.x as i32, size.y as i32));
                         ui.end_row();
+
+                        ui.label("Active Renderer:");
+                        ui.label(egui::RichText::new(crate::active_renderer_label()).monospace());
+                        ui.end_row();
+
+                        ui.label("Parallel Compute:");
+                        let compute = shared::ComputeRuntimeSummary::current();
+                        ui.label(format!("{} ({} threads, WGSL ready={})", compute.runtime_label, compute.parallel_threads, compute.wgsl_shader_ready));
+                        ui.end_row();
                     });
 
                 ui.add_space(8.0);
@@ -159,8 +169,24 @@ pub fn render_about_page(
                         ui.label("Open Help, Accessibility & UI Scale settings.");
                         ui.end_row();
 
+                        ui.label(egui::RichText::new("Ctrl+3").monospace().strong());
+                        ui.label("Open Analytics & 2D Parametric Viewport.");
+                        ui.end_row();
+
+                        ui.label(egui::RichText::new("F11").monospace().strong());
+                        ui.label("Toggle distraction-free Zen Mode.");
+                        ui.end_row();
+
+                        ui.label(egui::RichText::new("Ctrl+Shift+L").monospace().strong());
+                        ui.label("Copy a shareable #state=... URL hash without exposing local state.");
+                        ui.end_row();
+
+                        ui.label(egui::RichText::new("Drag & Drop").strong());
+                        ui.label("Drop .json, .csv, or .bson files onto the window to import.");
+                        ui.end_row();
+
                         ui.label(egui::RichText::new("Data Import/Export").strong());
-                        ui.label("Supports JSON, CSV (RFC 4180), and Compressed BSON backups.");
+                        ui.label("Supports JSON, CSV (RFC 4180), Compressed BSON, SVG Chart, and Printable HTML.");
                         ui.end_row();
                     });
             });

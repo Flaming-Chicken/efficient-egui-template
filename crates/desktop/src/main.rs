@@ -19,7 +19,7 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_title("Serverless & Desktop egui Template")
             .with_inner_size([1100.0, 750.0])
-            .with_min_inner_size([700.0, 500.0]),
+            .with_min_inner_size([320.0, 240.0]),
         ..Default::default()
     };
 
