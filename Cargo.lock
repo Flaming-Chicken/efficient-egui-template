@@ -208,7 +208,7 @@ dependencies = [
  "eframe",
  "egui",
  "js-sys",
- "miniz_oxide",
+ "miniz_oxide 0.9.1",
  "proptest",
  "ron",
  "serde",
@@ -1393,7 +1393,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
- "miniz_oxide",
+ "miniz_oxide 0.8.9",
 ]
 
 [[package]]
@@ -2067,6 +2067,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "miniz_oxide"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
+dependencies = [
+ "adler2",
+]
+
+[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2726,7 +2735,7 @@ dependencies = [
  "crc32fast",
  "fdeflate",
  "flate2",
- "miniz_oxide",
+ "miniz_oxide 0.8.9",
 ]
 
 [[package]]
@@ -3267,7 +3276,7 @@ dependencies = [
  "base64 0.23.1",
  "bson",
  "criterion",
- "miniz_oxide",
+ "miniz_oxide 0.9.1",
  "proptest",
  "serde",
  "serde_json",
@@ -3461,7 +3470,7 @@ version = "2.0.0"
 source = "git+https://github.com/Spodeian/spodeian-core?tag=v3.1.0#6704614ca800bf092216e9a49ff7b67aefd98c7e"
 dependencies = [
  "bson",
- "miniz_oxide",
+ "miniz_oxide 0.8.9",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

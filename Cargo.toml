@@ -30,7 +30,7 @@ web-sys = { version = "0.3", features = ["Document", "Window", "HtmlCanvasElemen
 js-sys = "0.3"
 console_error_panic_hook = "0.1.7"
 bson = "2"
-miniz_oxide = "0.8"
+miniz_oxide = "0.9"
 base64 = "0.23"
 ron = "0.12"
 criterion = "0.5"
